@@ -9,7 +9,7 @@ library(glue)
 df_parser <- function(data_file, metadata) {
   print(str_sub(data_file, start = 6, end = -5))
   df_raw <- read_xpt(data_file)
-  df <- df_raw[,colSums(is.na(df_raw))<nrow(df_raw)]
+  df <- df_raw[rowSums(is.na(df_raw)) != ncol(df_raw)-1, colSums(is.na(df_raw))<nrow(df_raw)]
   meta <- read_html(metadata)
   info <- data.frame(variable=character(), question=character(), data_type=character())
   for (i in colnames(df)) {
