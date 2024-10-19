@@ -1,8 +1,7 @@
-if (system.file(package='janitor')=="") {install.packages('janitor')}
-
 library(ggplot2)
-library(janitor)
-source('func/custom_functions.R')
+source('func/cdc_parsing.R')
+source('func/stats_testing.R')
+
 
 # Load in 2021-2023 data using custom parsing function
 dep_df <- df_parser('data/DPQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/DPQ_L.htm')
@@ -27,30 +26,25 @@ dep_df$dep_cat <- recode(dep_df$dep_group,
                          "(9,14]" = "moderate",
                          "(14,19]" = "moderate/severe",
                          "(19,27]" = "severe")
-# minimal, mild, moderate, moderate/severe, severe
-# [0,4] (4,9] (9,14] (14,19] (19,30]
+
 # plot histogram scores of depression_score
 ggplot(dep_df, aes(dep_score)) + geom_histogram(breaks=break_points)
 dep_df # depression score shows to have an exponential distribution
 
 ## Merging Insurance Dataframes
-# merge insurance coverage information (HIQ011 for currently having, HIQ210 for not having in 12 months) into depression df
+# merge insurance coverage information into depression df
 di <- left_join(dep_df[c("SEQN", "dep_score", "dep_cat")], 
                        dep_insur[c('SEQN', 'HIQ011','HIQ210')], 'SEQN')
 # summarise insured data against depression category
 di_sum <- di %>% group_by(dep_cat) %>% 
   summarise(
-    # currently_insured=sum(HIQ011==1), 
-    # currently_uninsured=sum(HIQ011==0), 
+    # currently_insured=sum(HIQ011==1),
+    # currently_uninsured=sum(HIQ011==0),
     uninsured_past_year=sum(HIQ210==1), 
     insured_past_year=sum(HIQ210==0)
     )
 
-di_sum_mat <- matrix(c(di_sum$uninsured_past_year, di_sum$insured_past_year),
-                     ncol = 5, byrow = TRUE)
-colnames(di_sum_mat) <-c(di_sum$dep_cat)
-rownames(di_sum_mat) <- c('Uninsured', 'Insured')
-di_sum_table <- as.table(di_sum_mat)
-chisq.test(di_sum_table)
+# Use custom function to process table and run chi squared analysis
+df_to_chisq(di_sum)
 
 
