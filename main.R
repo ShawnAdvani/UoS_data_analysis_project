@@ -1,4 +1,7 @@
+if (system.file(package='janitor')=="") {install.packages('janitor')}
+
 library(ggplot2)
+library(janitor)
 source('func/custom_functions.R')
 
 # Load in 2021-2023 data using custom parsing function
@@ -10,12 +13,22 @@ cond_df <- df_parser('data/MCQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-20
 ## Depression df calculations
 # convert missing, don't know, and refused responses to 0
 dep_df[dep_df==7|dep_df==9|is.na(dep_df)] <- 0
-# calculate and add to df depression_score (dep_score - 0 to 30)
-dep_df$dep_score <- rowSums(dep_df[,-1])
-# Plot histogram scores of depression_score
-ggplot(dep_df, aes(dep_score)) + geom_histogram()
+# calculate and add to df depression_score (dep_score - 0 to 27)
+# dep_df$dep_score <- rowSums(dep_df[,-1])
+dep_df_phq <- dep_df[,-11]
+dep_df$dep_score <- rowSums(dep_df_phq[,-1])
+# make bins with categories based on Kurt et. al. (1997)
+break_points <- c(0,4,9,14,19,27)
+dep_df$dep_group <- cut(dep_df$dep_score, breaks=break_points, 
+                      include.lowest=TRUE, right=TRUE) 
+dep_df$dep_cat <- recode(dep_df$dep_group, 
+                         "[0,4]"="minimal", 
+                         "(4,9]" = "mild", 
+                         "(9,14]" = "moderate",
+                         "(14,19]" = "moderate/severe",
+                         "(19,27]" = "severe")
+# minimal, mild, moderate, moderate/severe, severe
+# [0,4] (4,9] (9,14] (14,19] (19,30]
+# plot histogram scores of depression_score
+ggplot(dep_df, aes(dep_score)) + geom_histogram(breaks=break_points)
 dep_df # depression score shows to have an exponential distribution
-
-## Insurance df calculations
-
-
