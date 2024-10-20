@@ -47,4 +47,5 @@ di_sum <- di %>% group_by(dep_cat) %>%
 # Use custom function to process table and run chi squared analysis
 df_to_chisq(di_sum)
 
-
+# Run a Wilcoxon rank-sum test analysis on the data
+wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
