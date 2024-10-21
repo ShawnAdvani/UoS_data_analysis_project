@@ -27,21 +27,30 @@ dep_df$dep_cat <- recode(dep_df$dep_group,
                          "(9,14]" = "moderate",
                          "(14,19]" = "moderate/severe",
                          "(19,27]" = "severe")
-# 
 
 # plot histogram scores of depression_score
 ggplot(dep_df, aes(dep_score)) + geom_histogram(breaks=break_points)
 dep_df # depression score shows to have an exponential distribution
 
-## Merge other df into depression df
+
+# replace NA in HIQ210 to 7 (refused response)
+insur_df[["HIQ210"]][is.na(insur_df[["HIQ210"]])] <- 7
+
+# recode general health condition to qeustionnaire categories
+access_df$gen_health <- recode(access_df$HUQ010,
+                        '1'='excellent',
+                        '2'='very_good',
+                        '3'='good',
+                        '4'='fair',
+                        '5'='poor'
+)
+
+# Merge other df into depression df
 df <- left_join(dep_df, insur_df, 'SEQN')
 df <- left_join(df, access_df, 'SEQN')
 df <- left_join(df, cond_df, 'SEQN')
 
-
-## Analyse insurance information
-# replace NA in HIQ210 to 7 (refused response)
-df[["HIQ210"]][is.na(df[["HIQ210"]])] <- 7
+## Analyse Insurance Data
 # summarise insured data against depression category
 di_sum <- df %>% group_by(dep_cat) %>% 
   summarise(
@@ -59,6 +68,13 @@ df_to_chisq(di_sum[c('dep_cat','uninsured_past_year','insured_past_year')])  # r
 wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
 wilcox.test(di_sum$currently_insured, di_sum$currently_uninsured) # correlation is insignificant (p=0.05556)
 
-# Run ordinal logistic regression against filtered dataset
-# TODO
+# TODO need graphical analysis
 
+## Analysing Hospital Access Data
+# Use custom function to process table and run chi squared analysis
+chisq.test(table(dh$dep_cat,dh$gen_health))
+
+# run Kruskal-Wallis against categorical response and score
+kruskal.test(dep_cat~gen_health, data = dh)
+
+# TODO need graphical analysis
