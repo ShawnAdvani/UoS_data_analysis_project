@@ -10,7 +10,7 @@ insur_df <- df_parser('data/HIQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2
 access_df <- df_parser('data/HUQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/HUQ_L.htm')
 cond_df <- df_parser('data/MCQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/MCQ_L.htm')
 
-## Depression df calculations
+## Dataframe calculations and cleaning
 # convert missing, don't know, and refused responses to 0
 dep_df[dep_df==7|dep_df==9|is.na(dep_df)] <- 0
 # calculate and add to df depression_score (dep_score - 0 to 27)
@@ -27,19 +27,23 @@ dep_df$dep_cat <- recode(dep_df$dep_group,
                          "(9,14]" = "moderate",
                          "(14,19]" = "moderate/severe",
                          "(19,27]" = "severe")
+# 
 
 # plot histogram scores of depression_score
 ggplot(dep_df, aes(dep_score)) + geom_histogram(breaks=break_points)
 dep_df # depression score shows to have an exponential distribution
 
-## Merging Insurance Dataframes
-# merge insurance coverage information into depression df
-di <- left_join(dep_df[c("SEQN", "dep_score", "dep_cat")], 
-                       insur_df[c('SEQN', 'HIQ011','HIQ210')], 'SEQN')
+## Merge other df into depression df
+df <- left_join(dep_df, insur_df, 'SEQN')
+df <- left_join(df, access_df, 'SEQN')
+df <- left_join(df, cond_df, 'SEQN')
+
+
+## Analyse insurance information
 # replace NA in HIQ210 to 7 (refused response)
-di[["HIQ210"]][is.na(di[["HIQ210"]])] <- 7
+df[["HIQ210"]][is.na(df[["HIQ210"]])] <- 7
 # summarise insured data against depression category
-di_sum <- di %>% group_by(dep_cat) %>% 
+di_sum <- df %>% group_by(dep_cat) %>% 
   summarise(
     currently_insured=sum(HIQ011==1),
     currently_uninsured=sum(HIQ011==2),
@@ -48,12 +52,13 @@ di_sum <- di %>% group_by(dep_cat) %>%
     )
 
 # Use custom function to process table and run chi squared analysis
-df_to_chisq(di_sum[c('dep_cat','currently_insured','currently_uninsured')])
-df_to_chisq(di_sum[c('dep_cat','uninsured_past_year','insured_past_year')])
+df_to_chisq(di_sum[c('dep_cat','currently_insured','currently_uninsured')])  # correlation is insignificant (p=0.0645)
+df_to_chisq(di_sum[c('dep_cat','uninsured_past_year','insured_past_year')])  # received warning: Chi-squared approximation may be incorrect
 
 # Run a Wilcoxon rank-sum test analysis on the data
-a <- wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
-wilcox.test(di_sum$currently_insured, di_sum$currently_uninsured)
+wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
+wilcox.test(di_sum$currently_insured, di_sum$currently_uninsured) # correlation is insignificant (p=0.05556)
 
 # Run ordinal logistic regression against filtered dataset
 # TODO
+
