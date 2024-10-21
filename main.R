@@ -1,4 +1,5 @@
 library(ggplot2)
+library(tidyverse)
 source('func/cdc_parsing.R')
 source('func/stats_testing.R')
 
@@ -34,18 +35,25 @@ dep_df # depression score shows to have an exponential distribution
 ## Merging Insurance Dataframes
 # merge insurance coverage information into depression df
 di <- left_join(dep_df[c("SEQN", "dep_score", "dep_cat")], 
-                       dep_insur[c('SEQN', 'HIQ011','HIQ210')], 'SEQN')
+                       insur_df[c('SEQN', 'HIQ011','HIQ210')], 'SEQN')
+# replace NA in HIQ210 to 7 (refused response)
+di[["HIQ210"]][is.na(di[["HIQ210"]])] <- 7
 # summarise insured data against depression category
 di_sum <- di %>% group_by(dep_cat) %>% 
   summarise(
-    # currently_insured=sum(HIQ011==1),
-    # currently_uninsured=sum(HIQ011==0),
+    currently_insured=sum(HIQ011==1),
+    currently_uninsured=sum(HIQ011==2),
     uninsured_past_year=sum(HIQ210==1), 
-    insured_past_year=sum(HIQ210==0)
+    insured_past_year=sum(HIQ210==2)
     )
 
 # Use custom function to process table and run chi squared analysis
-df_to_chisq(di_sum)
+df_to_chisq(di_sum[c('dep_cat','currently_insured','currently_uninsured')])
+df_to_chisq(di_sum[c('dep_cat','uninsured_past_year','insured_past_year')])
 
 # Run a Wilcoxon rank-sum test analysis on the data
-wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
+a <- wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
+wilcox.test(di_sum$currently_insured, di_sum$currently_uninsured)
+
+# Run ordinal logistic regression against filtered dataset
+# TODO
