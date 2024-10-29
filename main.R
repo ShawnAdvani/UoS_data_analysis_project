@@ -50,9 +50,13 @@ access_df$gen_health <- recode(access_df$HUQ010,
 pie(table(access_df$gen_health))
 
 # Merge other df into depression df
-df <- left_join(dep_df, insur_df, 'SEQN')
-df <- left_join(df, access_df, 'SEQN')
-df <- left_join(df, cond_df, 'SEQN')
+df <- left_join(dep_df[c("SEQN", "dep_cat","dep_score")], 
+                insur_df[c("SEQN", "HIQ011", "HIQ210")], "SEQN")
+df <- left_join(df, access_df[c("SEQN", "gen_health", "HUQ010")], "SEQN")
+df <- left_join(df, cond_df[c("SEQN", 'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B',
+                            'MCQ160C', 'MCQ160D', 'MCQ160E', 'MCQ160F', 'MCQ160M',
+                            'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230')], 
+                "SEQN")
 
 ## Analyse Insurance Data
 # summarise insured data against depression category
@@ -132,3 +136,9 @@ for (i in conditions) {
     print(i_test$p.value)
   }
 }
+
+# TODO need graphical analysis
+
+## Run Ordinal Logistic Regression on Significant Variables
+
+
