@@ -32,3 +32,26 @@ df_to_chisq <- function(df) {
   return(results)
 }
 
+df_significance_testing <- function(df, dv, index) {
+  affective_columns <- c()
+  for (i in colnames(df)) {
+    if (i==index|i==dv) {
+      next
+    }
+    if (length(unique(df[[i]]))==3) {
+      df_i <- df %>% group_by(df[[dv]]) %>% summarise(
+        'Yes'=sum(df[[i]]=='Yes'),
+        'No'=sum(df[[i]]=='No')
+        )
+      i_test <- wilcox.test(dep_cond[['Yes']], dep_cond[['No']])
+      print(i)
+      if (i_test$p.value<0.05) {
+        print(i_test)
+        affective_columns <- c(affective_columns, i)
+      } else {
+        print(i_test$p.value)
+      }
+    }
+  }
+  return(affective_columns)
+}
