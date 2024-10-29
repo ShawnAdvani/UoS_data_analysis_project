@@ -12,7 +12,7 @@ access_df <- df_parser('data/HUQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-
 cond_df <- df_parser('data/MCQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/MCQ_L.htm')
 ## Dataframe calculations and cleaning
 # convert missing, don't know, and refused responses to 0
-dep_df[dep_df==7|dep_df==9|is.na(dep_df)] <- NA
+dep_df[dep_df==7|dep_df==9|is.na(dep_df)] <- 0
 # calculate and add to df depression_score (dep_score - 0 to 27)
 # dep_df$dep_score <- rowSums(dep_df[,-1])
 dep_df_phq <- dep_df[,-11]
@@ -20,9 +20,9 @@ dep_df$dep_score <- rowSums(dep_df_phq[,-1])
 # make bins with categories based on Kurt et. al. (1997)
 break_points <- c(0,4,9,14,19,27)
 dep_df$dep_group <- cut(dep_df$dep_score, breaks=break_points, 
-                      include.lowest=TRUE, right=TRUE) 
+                      include.lowest=1, right=1) 
 dep_df$dep_cat <- recode(dep_df$dep_group, 
-                         "[0,4]" = "minimal", 
+                         "[0,4]"="minimal", 
                          "(4,9]" = "mild", 
                          "(9,14]" = "moderate",
                          "(14,19]" = "moderate/severe",
@@ -88,30 +88,49 @@ kruskal.test(dep_cat~HUQ090, data = da_men)
 
 ## Analyse Condition Data
 # cleaning condition data
-for (i in c(
+cond_columns <- c(
   'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B', 'MCQ160C', 'MCQ160D', 'MCQ160E', 
   'MCQ160F', 'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230'
-)) {
-  df[[i]][df[[i]]==9|df[[i]]==7|is.na(df[[i]])] <- NA
-  df[[i]][df[[i]]==2|df[[i]]==0] <- FALSE
-  df[[i]][df[[i]]==1] <- TRUE
+)
+for (i in cond_columns) {
+  df[[i]][df[[i]]==9|df[[i]]==7|is.na(df[[i]])] <- 7
+  # df[[i]][df[[i]]==2|df[[i]]==0] <- 2
+  # df[[i]][df[[i]]==1] <- 1
   
 }
 
 # summarise condition data
-a <- df %>% group_by(dep_cat) %>% reframe(
-  asthma=sum(MCQ010==TRUE), no_astma=sum(MCQ010==FALSE),
-  allegies=sum(AGQ030==TRUE), no_allergies=sum(AGQ030==FALSE),
-  arthritis=sum(MCQ160A==TRUE), no_arthritis=sum(MCQ160A==FALSE),
-  heart_failure=sum(MCQ160B==TRUE), no_heart_failure=sum(MCQ160B==FALSE),
-  coranary=sum(MCQ160C==TRUE), no_coronary=sum(MCQ160C==FALSE),
-  angina=sum(MCQ160D==TRUE), no_angina=sum(MCQ160D==FALSE),
-  heart_attack=sum(MCQ160E==TRUE), no_heart_attack=sum(MCQ160E==FALSE),
-  stroke=sum(MCQ160F==TRUE), no_stroke=sum(MCQ160F==FALSE),
-  thyroid_p=sum(MCQ160M==TRUE), no_thryoid_p=sum(MCQ160M==FALSE),
-  copd=sum(MCQ160P==TRUE), no_copd=sum(MCQ160P==FALSE),
-  liver_d=sum(MCQ160L==TRUE), no_liver_d=sum(MCQ160L==FALSE),
-  gallstones=sum(MCQ550==TRUE), no_gallstones=sum(MCQ550==FALSE),
-  cancer=sum(MCQ220==TRUE), no_cancer=sum(MCQ220==FALSE),
-  metal=sum(OSQ230==TRUE), no_metal=sum(OSQ230==FALSE)
+dep_cond <- df %>% group_by(dep_cat) %>% reframe(
+  asthma=sum(MCQ010==1), no_asthma=sum(MCQ010==2),
+  allegies=sum(AGQ030==1), no_allergies=sum(AGQ030==2),
+  arthritis=sum(MCQ160A==1), no_arthritis=sum(MCQ160A==2),
+  heart_failure=sum(MCQ160B==1), no_heart_failure=sum(MCQ160B==2),
+  coranary=sum(MCQ160C==1), no_coronary=sum(MCQ160C==2),
+  angina=sum(MCQ160D==1), no_angina=sum(MCQ160D==2),
+  heart_attack=sum(MCQ160E==1), no_heart_attack=sum(MCQ160E==2),
+  stroke=sum(MCQ160F==1), no_stroke=sum(MCQ160F==2),
+  thyroid_p=sum(MCQ160M==1), no_thryoid_p=sum(MCQ160M==2),
+  copd=sum(MCQ160P==1), no_copd=sum(MCQ160P==2),
+  liver_d=sum(MCQ160L==1), no_liver_d=sum(MCQ160L==2),
+  gallstones=sum(MCQ550==1), no_gallstones=sum(MCQ550==2),
+  cancer=sum(MCQ220==1), no_cancer=sum(MCQ220==2),
+  metal=sum(OSQ230==1), no_metal=sum(OSQ230==2)
 )
+
+# Run wilcox tests on all the variables
+# for (i in colnames(dep_cond)) {
+#   wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
+# }
+conditions = c('asthma', 'allegies', 'arthritis', 'heart_failure', 'coranary',
+               'angina', 'heart_attack', 'stroke', 'thyroid_p', 'copd', 'liver_d',
+               'gallstones', 'cancer', 'metal')
+affective_conditions = c()
+for (i in conditions) {
+  i_test <- wilcox.test(dep_cond[[i]], dep_cond[[glue('no_{i}')]])
+  if (i_test$p.value<0.05) {
+    print(i)
+    print(i_test)
+    affective_conditions <- c()
+  }
+}
+wilcox.test(dep_cond$asthma, dep_cond$no_asthma)
