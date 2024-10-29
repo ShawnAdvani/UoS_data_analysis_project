@@ -48,6 +48,7 @@ access_df$gen_health <- recode(access_df$HUQ010,
                         '5'='poor'
 )
 access_df[['HUQ010']][access_df[['HUQ010']]==9] <- 7
+access_df[['HUQ090']][access_df[['HUQ090']]==9] <- 7
 
 pie(table(access_df$gen_health))
 
@@ -63,27 +64,28 @@ for (i in cond_columns) {
 # Merge other df into depression df
 df <- left_join(dep_df[c("SEQN", "dep_cat","dep_score")], 
                 insur_df[c("SEQN", "HIQ011", "HIQ210")], "SEQN")
-df <- left_join(df, access_df[c("SEQN", "gen_health", "HUQ010")], "SEQN")
+df <- left_join(df, access_df[c("SEQN", "gen_health", "HUQ010", "HUQ090")], "SEQN")
 df <- left_join(df, cond_df[c("SEQN", 'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B',
                             'MCQ160C', 'MCQ160D', 'MCQ160E', 'MCQ160F', 'MCQ160M',
                             'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230')], 
                 "SEQN")
 
 for (i in colnames(df)) {
-  if (i != 'SEQN') {
-    print(i)
-    print(unique(df[[i]]))
+  if (length(unique(df[[i]]))==3) {
+    df[[i]] <- recode(df[[i]], '1' = 'Yes', '2' = 'No', '7' = 'Missing')
   }
+  print(i)
+  print(unique(df[[i]]))
 }
 
 ## Analyse Insurance Data
 # summarise insured data against depression category
 di_sum <- df %>% group_by(dep_cat) %>% 
   summarise(
-    currently_insured=sum(HIQ011==1),
-    currently_uninsured=sum(HIQ011==2),
-    uninsured_past_year=sum(HIQ210==1), 
-    insured_past_year=sum(HIQ210==2)
+    currently_insured=sum(HIQ011=='Yes'),
+    currently_uninsured=sum(HIQ011=='No'),
+    uninsured_past_year=sum(HIQ210=='Yes'), 
+    insured_past_year=sum(HIQ210=='No')
     )
 
 # Use custom function to process table and run chi squared analysis
@@ -98,7 +100,7 @@ wilcox.test(di_sum$currently_insured, di_sum$currently_uninsured) # correlation 
 
 ## Analysing Hospital Access Data
 # process table and run chi squared analysis for general health and mental health
-da_men <- df %>% filter(HUQ090==1|HUQ090==2)
+da_men <- df %>% filter(HUQ090=='Yes'|HUQ090=='No')
 chisq.test(table(df$dep_cat,df$gen_health))
 chisq.test(table(da_men$dep_cat,da_men$HUQ090))
 
@@ -112,20 +114,20 @@ kruskal.test(dep_cat~HUQ090, data = da_men)
 
 # summarise condition data
 dep_cond <- df %>% group_by(dep_cat) %>% reframe(
-  asthma=sum(MCQ010==1), no_asthma=sum(MCQ010==2),
-  allegies=sum(AGQ030==1), no_allergies=sum(AGQ030==2),
-  arthritis=sum(MCQ160A==1), no_arthritis=sum(MCQ160A==2),
-  heart_failure=sum(MCQ160B==1), no_heart_failure=sum(MCQ160B==2),
-  coranary=sum(MCQ160C==1), no_coronary=sum(MCQ160C==2),
-  angina=sum(MCQ160D==1), no_angina=sum(MCQ160D==2),
-  heart_attack=sum(MCQ160E==1), no_heart_attack=sum(MCQ160E==2),
-  stroke=sum(MCQ160F==1), no_stroke=sum(MCQ160F==2),
-  thyroid_p=sum(MCQ160M==1), no_thryoid_p=sum(MCQ160M==2),
-  copd=sum(MCQ160P==1), no_copd=sum(MCQ160P==2),
-  liver_d=sum(MCQ160L==1), no_liver_d=sum(MCQ160L==2),
-  gallstones=sum(MCQ550==1), no_gallstones=sum(MCQ550==2),
-  cancer=sum(MCQ220==1), no_cancer=sum(MCQ220==2),
-  metal=sum(OSQ230==1), no_metal=sum(OSQ230==2)
+  asthma=sum(MCQ010=='Yes'), no_asthma=sum(MCQ010=='No'),
+  allegies=sum(AGQ030=='Yes'), no_allergies=sum(AGQ030=='No'),
+  arthritis=sum(MCQ160A=='Yes'), no_arthritis=sum(MCQ160A=='No'),
+  heart_failure=sum(MCQ160B=='Yes'), no_heart_failure=sum(MCQ160B=='No'),
+  coranary=sum(MCQ160C=='Yes'), no_coronary=sum(MCQ160C=='No'),
+  angina=sum(MCQ160D=='Yes'), no_angina=sum(MCQ160D=='No'),
+  heart_attack=sum(MCQ160E=='Yes'), no_heart_attack=sum(MCQ160E=='No'),
+  stroke=sum(MCQ160F=='Yes'), no_stroke=sum(MCQ160F=='No'),
+  thyroid_p=sum(MCQ160M=='Yes'), no_thryoid_p=sum(MCQ160M=='No'),
+  copd=sum(MCQ160P=='Yes'), no_copd=sum(MCQ160P=='No'),
+  liver_d=sum(MCQ160L=='Yes'), no_liver_d=sum(MCQ160L=='No'),
+  gallstones=sum(MCQ550=='Yes'), no_gallstones=sum(MCQ550=='No'),
+  cancer=sum(MCQ220=='Yes'), no_cancer=sum(MCQ220=='No'),
+  metal=sum(OSQ230=='Yes'), no_metal=sum(OSQ230=='No')
 )
 
 # Run wilcox tests on all the variables
