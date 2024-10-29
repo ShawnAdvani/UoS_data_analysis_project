@@ -22,7 +22,7 @@ break_points <- c(0,4,9,14,19,27)
 dep_df$dep_group <- cut(dep_df$dep_score, breaks=break_points, 
                       include.lowest=1, right=1) 
 dep_df$dep_cat <- recode(dep_df$dep_group, 
-                         "[0,4]"="minimal", 
+                         "[0,4]" = "minimal", 
                          "(4,9]" = "mild", 
                          "(9,14]" = "moderate",
                          "(14,19]" = "moderate/severe",
@@ -32,8 +32,9 @@ dep_df$dep_cat <- recode(dep_df$dep_group,
 ggplot(dep_df, aes(dep_score)) + geom_histogram(breaks=break_points)
 dep_df[c('dep_cat','dep_score')] # depression score shows to have an exponential distribution
 
-# replace NA in HIQ210 to 7 (refused response)
-insur_df[["HIQ210"]][is.na(insur_df[["HIQ210"]])] <- 7
+# replace NA/missing in insur_df to 7 (refused response)
+insur_df[["HIQ210"]][is.na(insur_df[["HIQ210"]])|insur_df[["HIQ210"]]==9] <- 7
+insur_df[["HIQ011"]][is.na(insur_df[["HIQ011"]])|insur_df[["HIQ011"]]==9] <- 7
 
 ggplot(insur_df %>% filter(HIQ210==1|HIQ210==2), aes(HIQ210)) +
   geom_bar()
@@ -46,8 +47,18 @@ access_df$gen_health <- recode(access_df$HUQ010,
                         '4'='fair',
                         '5'='poor'
 )
+access_df[['HUQ010']][access_df[['HUQ010']]==9] <- 7
 
 pie(table(access_df$gen_health))
+
+# cleaning condition data
+cond_columns <- c(
+  'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B', 'MCQ160C', 'MCQ160D', 'MCQ160E', 
+  'MCQ160F', 'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230'
+)
+for (i in cond_columns) {
+  cond_df[[i]][cond_df[[i]]==9|cond_df[[i]]==7|is.na(cond_df[[i]])] <- 7
+}
 
 # Merge other df into depression df
 df <- left_join(dep_df[c("SEQN", "dep_cat","dep_score")], 
@@ -57,6 +68,13 @@ df <- left_join(df, cond_df[c("SEQN", 'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B',
                             'MCQ160C', 'MCQ160D', 'MCQ160E', 'MCQ160F', 'MCQ160M',
                             'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230')], 
                 "SEQN")
+
+for (i in colnames(df)) {
+  if (i != 'SEQN') {
+    print(i)
+    print(unique(df[[i]]))
+  }
+}
 
 ## Analyse Insurance Data
 # summarise insured data against depression category
@@ -91,17 +109,6 @@ kruskal.test(dep_cat~HUQ090, data = da_men)
 # TODO need graphical analysis
 
 ## Analyse Condition Data
-# cleaning condition data
-cond_columns <- c(
-  'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B', 'MCQ160C', 'MCQ160D', 'MCQ160E', 
-  'MCQ160F', 'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230'
-)
-for (i in cond_columns) {
-  df[[i]][df[[i]]==9|df[[i]]==7|is.na(df[[i]])] <- 7
-  # df[[i]][df[[i]]==2|df[[i]]==0] <- 2
-  # df[[i]][df[[i]]==1] <- 1
-  
-}
 
 # summarise condition data
 dep_cond <- df %>% group_by(dep_cat) %>% reframe(

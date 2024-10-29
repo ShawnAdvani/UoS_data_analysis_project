@@ -31,3 +31,4 @@ df_to_chisq <- function(df) {
   results <- chisq.test(as.table(df_to_mat))
   return(results)
 }
+
