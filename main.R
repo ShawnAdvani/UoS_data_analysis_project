@@ -118,19 +118,17 @@ dep_cond <- df %>% group_by(dep_cat) %>% reframe(
 )
 
 # Run wilcox tests on all the variables
-# for (i in colnames(dep_cond)) {
-#   wilcox.test(di_sum$uninsured_past_year, di_sum$insured_past_year)
-# }
 conditions = c('asthma', 'allegies', 'arthritis', 'heart_failure', 'coranary',
                'angina', 'heart_attack', 'stroke', 'thyroid_p', 'copd', 'liver_d',
                'gallstones', 'cancer', 'metal')
 affective_conditions = c()
 for (i in conditions) {
   i_test <- wilcox.test(dep_cond[[i]], dep_cond[[glue('no_{i}')]])
+  print(i)
   if (i_test$p.value<0.05) {
-    print(i)
     print(i_test)
-    affective_conditions <- c()
+    affective_conditions <- c(affective_conditions, i)
+  } else {
+    print(i_test$p.value)
   }
 }
-wilcox.test(dep_cond$asthma, dep_cond$no_asthma)
