@@ -40,13 +40,14 @@ ggplot(insur_df %>% filter(HIQ210==1|HIQ210==2), aes(HIQ210)) +
   geom_bar()
 
 # recode general health condition to qeustionnaire categories
-access_df$gen_health <- recode(access_df$HUQ010,
-                        '1'='excellent',
-                        '2'='very_good',
-                        '3'='good',
-                        '4'='fair',
-                        '5'='poor'
-)
+# access_df$gen_health <- recode(access_df$HUQ010,
+#                         '1'='excellent',
+#                         '2'='very_good',
+#                         '3'='good',
+#                         '4'='fair',
+#                         '5'='poor'
+# )
+# access_df <- access_df %>% select(-HUQ010)
 access_df[['HUQ010']][access_df[['HUQ010']]==9] <- 7
 access_df[['HUQ090']][access_df[['HUQ090']]==9] <- 7
 
@@ -73,10 +74,17 @@ df <- left_join(df, cond_df[c("SEQN", 'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B',
 for (i in colnames(df)) {
   if (length(unique(df[[i]]))==3) {
     df[[i]] <- recode(df[[i]], '1' = 'Yes', '2' = 'No', '7' = 'Missing')
+  } else {
+    df[[i]] <- recode(df[[i]], '7' = 'Missing')
   }
   print(i)
   print(unique(df[[i]]))
 }
 
-sig_columns_score <- df_significance_testing(df, 'dep_score', 'SEQN')
-sig_columns_cat <- df_significance_testing(df, 'dep_cat', 'SEQN')
+sig_columns_score <- df_significance_testing(df %>% select(-dep_cat), 'dep_score', 'SEQN')
+sig_columns_cat <- df_significance_testing(df %>% select(-dep_score), 'dep_cat', 'SEQN')
+
+score_df <- df[c('dep_score', sig_columns_score)]
+score_df[score_df=='Missing'] <- NA
+cat_df <- df[c('dep_cat', sig_columns_cat)]
+cat_df[cat_df=='Missing'] <- NA

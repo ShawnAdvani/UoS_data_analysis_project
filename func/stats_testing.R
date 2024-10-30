@@ -11,8 +11,8 @@ df_significance_testing <- function(df, dv, index) {
       if (i==index|i==dv|i=='dv') {
         next
       }
-      if (class(df[[i]])=='integer'|class(df[[i]])=='numeric') {
-        next
+      if (i=='HUQ010') {
+        print(i)
       }
       print(glue('Running test with {i} column...'))
       df_i <- df[c(dv, i)]
@@ -24,6 +24,8 @@ df_significance_testing <- function(df, dv, index) {
       } else if (results$p.value<0.05) {
         print(results)
         affective_columns <- c(affective_columns, i)
+      } else {
+        next
       }
       Sys.sleep(.5)
     }
@@ -43,7 +45,7 @@ df_significance_testing <- function(df, dv, index) {
           print(class(results))
           next
         } else if (results$p.value<0.05) {
-          print(results)
+          # print(results)
           affective_columns <- c(affective_columns, i)
         }
       } else {
@@ -59,7 +61,6 @@ df_significance_testing <- function(df, dv, index) {
           affective_columns <- c(affective_columns, i)
         }
       }
-      Sys.sleep(.5)
     }
   } else {
     print(glue('unsupported dependent variable type: {class(df[[dv]]}'))
@@ -106,10 +107,10 @@ df_run_mann_witney <- function(df) {
 
 df_run_chi_squared <- function(df) {
   df_table <- table(df$dv, df$iv)
-  score_5s <- sum(as.numeric(df_table)<5)/length(as.numeric(df_table))
-  if (score_5s>.2) {
-    return(NA) # TODO can add Fishers Exact Test
-  }
+  # score_5s <- sum(as.numeric(df_table)<5)/length(as.numeric(df_table))
+  # if (score_5s>.2) {
+  #   return(NA) # TODO can add Fishers Exact Test
+  # }
   results <- chisq.test(df_table)
   return(results)
 }
