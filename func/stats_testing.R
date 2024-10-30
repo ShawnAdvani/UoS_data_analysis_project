@@ -1,6 +1,73 @@
 if (system.file(package='janitor')=="") {install.packages('janitor')}
-
 library(janitor)
+library(glue)
+
+df_significance_testing <- function(df, dv, index) {
+  print('Finding significant columns...')
+  affective_columns <- c()
+  if (class(df[[dv]])=='factor') {
+    print('Dependent variable is categorical')
+    for (i in colnames(df)) {
+      if (i==index|i==dv|i=='dv') {
+        next
+      }
+      if (class(df[[i]])=='integer'|class(df[[i]])=='numeric') {
+        next
+      }
+      print(glue('Running test with {i} column...'))
+      df_i <- df[c(dv, i)]
+      colnames(df_i)[1:2] <- c('dv', 'iv')
+      df_i <- df_i %>% filter(iv!='Missing')
+      results <- df_run_chi_squared(df_i)
+      if (class(results)!="htest") {
+        next
+      } else if (results$p.value<0.05) {
+        print(results)
+        affective_columns <- c(affective_columns, i)
+      }
+      Sys.sleep(.5)
+    }
+  } else if (class(df[[dv]])=='integer'|class(df[[dv]])=='numeric') {
+    print('Dependent variable is numerical')
+    for (i in colnames(df)) {
+      if (i==index|i==dv|i=='dv') {
+        next
+      }
+      print(glue('Running test with {i} column...'))
+      if (identical(sort(unique(df[[i]])), c("Missing", "No", "Yes"))) {
+        df_i <- df[c(dv, i)]
+        colnames(df_i)[1:2] <- c('dv', 'iv')
+        df_i <- df_i %>% filter(iv!='Missing')
+        results <- df_run_mann_witney(df_i)
+        if (class(results)!="htest") {
+          print(class(results))
+          next
+        } else if (results$p.value<0.05) {
+          print(results)
+          affective_columns <- c(affective_columns, i)
+        }
+      } else {
+        df_i <- df[c(dv, i)]
+        colnames(df_i)[1:2] <- c('dv', 'iv')
+        df_i <- df_i %>% filter(iv!='Missing')
+        results <- kruskal.test(df_i$iv, df_i$dv)
+        if (class(results)!="htest") {
+          print(class(results))
+          next
+        } else if (results$p.value<0.05) {
+          print(results)
+          affective_columns <- c(affective_columns, i)
+        }
+      }
+      Sys.sleep(.5)
+    }
+  } else {
+    print(glue('unsupported dependent variable type: {class(df[[dv]]}'))
+  }
+  return(affective_columns)
+}
+
+
 
 # custom fuction to convert df into a matrix/table to be processed into chisq.test() function
 df_to_chisq <- function(df) {
@@ -32,26 +99,18 @@ df_to_chisq <- function(df) {
   return(results)
 }
 
-df_significance_testing <- function(df, dv, index) {
-  affective_columns <- c()
-  for (i in colnames(df)) {
-    if (i==index|i==dv) {
-      next
-    }
-    if (length(unique(df[[i]]))==3) {
-      df_i <- df %>% group_by(df[[dv]]) %>% summarise(
-        'Yes'=sum(df[[i]]=='Yes'),
-        'No'=sum(df[[i]]=='No')
-        )
-      i_test <- wilcox.test(dep_cond[['Yes']], dep_cond[['No']])
-      print(i)
-      if (i_test$p.value<0.05) {
-        print(i_test)
-        affective_columns <- c(affective_columns, i)
-      } else {
-        print(i_test$p.value)
-      }
-    }
-  }
-  return(affective_columns)
+df_run_mann_witney <- function(df) {
+  df$iv <- recode(df$iv, "Yes"=1, 'No'=0)
+  return(wilcox.test(df$iv, df$dv))
 }
+
+df_run_chi_squared <- function(df) {
+  df_table <- table(df$dv, df$iv)
+  score_5s <- sum(as.numeric(df_table)<5)/length(as.numeric(df_table))
+  if (score_5s>.2) {
+    return(NA) # TODO can add Fishers Exact Test
+  }
+  results <- chisq.test(df_table)
+  return(results)
+}
+
