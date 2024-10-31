@@ -1,3 +1,13 @@
+if (system.file(package='foreign')=="") {install.packages('foreign')}
+if (system.file(package='MASS')=="") {install.packages('MASS')}
+if (system.file(package='Hmisc')=="") {install.packages('Hmisc')}
+if (system.file(package='reshape2')=="") {install.packages('reshape2')}
+require(foreign)
+require(MASS)
+require(Hmisc)
+require(reshape2)
+
+
 library(ggplot2)
 library(tidyverse)
 library(janitor)
@@ -40,14 +50,14 @@ ggplot(insur_df %>% filter(HIQ210==1|HIQ210==2), aes(HIQ210)) +
   geom_bar()
 
 # recode general health condition to qeustionnaire categories
-# access_df$gen_health <- recode(access_df$HUQ010,
-#                         '1'='excellent',
-#                         '2'='very_good',
-#                         '3'='good',
-#                         '4'='fair',
-#                         '5'='poor'
-# )
-# access_df <- access_df %>% select(-HUQ010)
+access_df$gen_health <- recode(access_df$HUQ010,
+                        '1'='excellent',
+                        '2'='very_good',
+                        '3'='good',
+                        '4'='fair',
+                        '5'='poor'
+)
+access_df <- access_df %>% select(-HUQ010)
 access_df[['HUQ010']][access_df[['HUQ010']]==9] <- 7
 access_df[['HUQ090']][access_df[['HUQ090']]==9] <- 7
 
@@ -73,18 +83,55 @@ df <- left_join(df, cond_df[c("SEQN", 'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B',
 
 for (i in colnames(df)) {
   if (length(unique(df[[i]]))==3) {
-    df[[i]] <- recode(df[[i]], '1' = 'Yes', '2' = 'No', '7' = 'Missing')
-  } else {
-    df[[i]] <- recode(df[[i]], '7' = 'Missing')
+    df[[i]] <- recode(df[[i]], '1' = 'Yes', '2' = 'No')
+  # } else {
+  #   df[[i]] <- recode(df[[i]], '7' = 'Missing')
   }
   print(i)
   print(unique(df[[i]]))
 }
 
-sig_columns_score <- df_significance_testing(df %>% select(-dep_cat), 'dep_score', 'SEQN')
-sig_columns_cat <- df_significance_testing(df %>% select(-dep_score), 'dep_cat', 'SEQN')
+df <- subset(df, select = -c(HUQ010))
 
+sig_columns_score <- df_significance_testing(subset(df, select = -c(dep_cat)), 'dep_score', 'SEQN')
+sig_columns_cat <- df_significance_testing(subset(df, select = -c(dep_score)), 'dep_cat', 'SEQN')
+
+# df[df=='Missing'] <- NA
 score_df <- df[c('dep_score', sig_columns_score)]
-score_df[score_df=='Missing'] <- NA
+# score_df[score_df=='Missing'] <- NA
 cat_df <- df[c('dep_cat', sig_columns_cat)]
-cat_df[cat_df=='Missing'] <- NA
+# cat_df[cat_df=='Missing'] <- NA
+cat_df <- na.omit(cat_df)
+
+## LOGISTIC REGRESSION
+# Statistical testing
+m <- polr(formula = dep_cat ~ HIQ210 + HUQ090 + gen_health +  # AGQ030 + gen_health + MCQ010
+            MCQ160A + MCQ160B + MCQ160D + MCQ160F + MCQ160M + 
+            MCQ160P + MCQ160L + MCQ550 + OSQ230, data = cat_df, Hess=TRUE)
+summary(m)
+
+(ctable <- coef(summary(m)))
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+(ctable <- cbind(ctable, "p value" = p))
+(ci <- confint(m))
+exp(coef(m))
+exp(cbind(OR = coef(m), ci))
+
+sf <- function(y) {
+  c('Y>=1' = qlogis(mean(y >= 1)),
+    'Y>=2' = qlogis(mean(y >= 2)),
+    'Y>=3' = qlogis(mean(y >= 3)))
+}
+
+(s <- with(cat_df, summary(as.numeric(dep_cat) ~ HIQ210 + HUQ090 + gen_health +  # AGQ030 + gen_health + MCQ010
+                             MCQ160A + MCQ160B + MCQ160D + MCQ160F + MCQ160M + 
+                             MCQ160P + MCQ160L + MCQ550 + OSQ230, fun=sf)))
+
+s[, 4] <- s[, 4] - s[, 3]
+s[, 3] <- s[, 3] - s[, 3]
+s
+plot(s, which=1:3, pch=1:3, xlab='logit', main=' ', xlim=range(s[,3:4]))
+
+# regression analysis
+
+
