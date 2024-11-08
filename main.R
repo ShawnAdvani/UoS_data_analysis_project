@@ -2,6 +2,10 @@ if (system.file(package='foreign')=="") {install.packages('foreign')}
 if (system.file(package='MASS')=="") {install.packages('MASS')}
 if (system.file(package='Hmisc')=="") {install.packages('Hmisc')}
 if (system.file(package='reshape2')=="") {install.packages('reshape2')}
+if (system.file(package='viridis')=="") {install.packages("viridis")}
+if (system.file(package='ggthemes')=="") {install.packages("ggthemes")}
+if (system.file(package='ggiraph')=="") {install.packages("ggiraph")}
+
 require(foreign)
 require(MASS)
 require(Hmisc)
@@ -9,10 +13,14 @@ require(reshape2)
 
 
 library(ggplot2)
+library(ggiraph)
 library(tidyverse)
 library(janitor)
 source('func/cdc_parsing.R')
 source('func/stats_testing.R')
+
+library(viridis)
+library(ggthemes)
 
 
 # Load in 2021-2023 data using custom parsing function
@@ -150,29 +158,39 @@ lreg_df <- melt(reg_df_probs, id.vars = c(
   'HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F',
   'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'OSQ230', 'gen_health'
   ), variable.name = "Level", value.name = "Probability", )
-lreg_df$gen_health <- recode(
-  lreg_df$gen_health, 
-    'excellent'=5,
-    'very_good'=4,
-    'good'=3,
-    'fair'=2,
-    'poor'=1
-  )
+# lreg_df$gen_health <- recode(
+#   lreg_df$gen_health, 
+#     'excellent'=5,
+#     'very_good'=4,
+#     'good'=3,
+#     'fair'=2,
+#     'poor'=1
+#   )
 
 graphing_stuff <- function(df, name='TOTAL') {
   graph_df <- df %>% group_by(gen_health, Level) %>% summarise(Probability=mean(Probability))
-  ggplot(graph_df, aes(
-    x = gen_health, 
+  svg(glue('figs/{name}svg'), width = 11, height = 8.5)
+  output_plot <- ggplot(graph_df, aes(
+    x = factor(gen_health, levels = c('excellent', 'very_good', 'good', 'fair', 'poor')), 
     y = Probability, 
     fill = Level,
-  )) + geom_bar(position = 'dodge', stat = 'identity') + labs(
+  )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
     title = glue('Depression Probability: {name}'),
     x = 'Reported General Health Status',
     y = 'Probability of Outcome (0 to 1)',
     aes(name='Depression Categorical Level')
-  )
+  ) + 
+    # theme_economist() + scale_fill_economist() +
+    # theme_wsj() + scale_fill_wsj(palette = "colors6")
+    # theme_stata() + scale_fill_stata()
+    theme_economist() + 
+    scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
+  dev.off()
   ggsave(glue('figs/{name}.png'), width = 11, height = 8.5)
+  return(output_plot)
 }
+
+# svg(glue('figs/{name}.png'), width = 11, height = 8.5)
 
 graphing_stuff(lreg_df)
 
@@ -195,3 +213,6 @@ for (i in filter_options) {
 }
 print(graph_df_filtered)
 graphing_stuff(graph_df_filtered, 'NONE')
+
+
+# TODO add interactive element to combine into one plot, rename condition names
