@@ -162,23 +162,23 @@ lreg_df <- melt(reg_df_probs, id.vars = c(
   ), variable.name = "Level", value.name = "Probability", )
 
 graphing_stuff <- function(df=lreg_df, name='TOTAL') {
-  graph_df <- df %>% group_by(gen_health, Level) %>% summarise(Probability=mean(Probability))
-  output_plot <- ggplot(graph_df, mapping=aes(
+  # graph_df <- df %>% group_by(gen_health, Level) %>% summarise(Probability=mean(Probability))
+  output_plot <- ggplot(df, mapping=aes(
     x = factor(gen_health, levels = c('excellent', 'very_good', 'good', 'fair', 'poor')), 
     y = Probability, 
     fill = Level,
     tooltip = Probability, data_id = Probability
   )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
-    title = glue('Depression Probability: {name}'),
+    title = 'Depression Probability',
     x = 'Reported General Health Status',
     y = 'Probability of Outcome (0 to 1)',
     hover_nearest = TRUE,
     aes(name='Depression Categorical Level')
   ) + theme_economist() + 
     scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
-  ggsave(glue('figs/{name}.png'), width = 11, height = 8.5)
+  # ggsave(glue('figs/{name}.png'), width = 11, height = 8.5)
   interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
-  htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
+  # htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
   return(interactive_plot)
 }
 
@@ -188,24 +188,19 @@ filter_options <- c('HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160
 ui <- fluidPage(
   sidebarLayout( 
     selectInput("cols", "Select Conditions:", 
-                choices = filter_options, multiple = TRUE
+                choices = filter_options, selected = filter_options, 
+                multiple = TRUE
     ), 
     mainPanel(
-      girafeOutput(outputId = "interactivePlot", width = '1920px', height = '1080px'),
+      girafeOutput(outputId = "interactivePlot", width = '100%', height = NULL),
       tableOutput(outputId = 'table')
     )
-    # uiOutput("checkbox"),
-    # mainPanel = mainPanel(
-    #   girafeOutput('girafe_output', height = 600)
-    # )
   ),
 )
 
 server <- function(input, output) {
   filtered_data <- reactive({
     req(input$cols)
-    # selected_cols <- c(input$cols, 'gen_health', 'Probability', 'Level')
-    # lreg_df[[lreg_df[[input$cols]]=='Yes']]
     graphing_df <- lreg_df
     for (i in filter_options) {
       if (i %in% input$cols){
@@ -218,20 +213,7 @@ server <- function(input, output) {
   })
   output$interactivePlot <- renderGirafe({
     graphing_df <- data.frame(filtered_data())
-    ggplot(graphing_df, mapping=aes(
-      x = factor(gen_health, levels = c('excellent', 'very_good', 'good', 'fair', 'poor')), 
-      y = Probability, 
-      fill = Level,
-      tooltip = Probability, data_id = Probability
-    )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
-      title = 'Depression Probability',
-      x = 'Reported General Health Status',
-      y = 'Probability of Outcome (0 to 1)',
-      hover_nearest = TRUE,
-      aes(name='Depression Categorical Level')
-    )
-    # + theme_economist() + 
-    #   scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
+    graphing_stuff(graphing_df)
   })
   output$table <- renderTable({
     filtered_data()
