@@ -5,6 +5,7 @@ if (system.file(package='reshape2')=="") {install.packages('reshape2')}
 if (system.file(package='viridis')=="") {install.packages("viridis")}
 if (system.file(package='ggthemes')=="") {install.packages("ggthemes")}
 if (system.file(package='ggiraph')=="") {install.packages("ggiraph")}
+if (system.file(package='shiny')=="") {install.packages("shiny")}
 
 require(foreign)
 require(MASS)
@@ -14,6 +15,7 @@ require(reshape2)
 
 library(ggplot2)
 library(ggiraph)
+library(shiny)
 library(tidyverse)
 library(janitor)
 source('func/cdc_parsing.R')
@@ -158,61 +160,103 @@ lreg_df <- melt(reg_df_probs, id.vars = c(
   'HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F',
   'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'OSQ230', 'gen_health'
   ), variable.name = "Level", value.name = "Probability", )
-# lreg_df$gen_health <- recode(
-#   lreg_df$gen_health, 
-#     'excellent'=5,
-#     'very_good'=4,
-#     'good'=3,
-#     'fair'=2,
-#     'poor'=1
-#   )
 
-graphing_stuff <- function(df, name='TOTAL') {
+graphing_stuff <- function(df=lreg_df, name='TOTAL') {
   graph_df <- df %>% group_by(gen_health, Level) %>% summarise(Probability=mean(Probability))
-  svg(glue('figs/{name}svg'), width = 11, height = 8.5)
-  output_plot <- ggplot(graph_df, aes(
+  output_plot <- ggplot(graph_df, mapping=aes(
     x = factor(gen_health, levels = c('excellent', 'very_good', 'good', 'fair', 'poor')), 
     y = Probability, 
     fill = Level,
+    tooltip = Probability, data_id = Probability
   )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
     title = glue('Depression Probability: {name}'),
     x = 'Reported General Health Status',
     y = 'Probability of Outcome (0 to 1)',
+    hover_nearest = TRUE,
     aes(name='Depression Categorical Level')
-  ) + 
-    # theme_economist() + scale_fill_economist() +
-    # theme_wsj() + scale_fill_wsj(palette = "colors6")
-    # theme_stata() + scale_fill_stata()
-    theme_economist() + 
+  ) + theme_economist() + 
     scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
-  dev.off()
   ggsave(glue('figs/{name}.png'), width = 11, height = 8.5)
-  return(output_plot)
+  interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
+  htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
+  return(interactive_plot)
 }
-
-# svg(glue('figs/{name}.png'), width = 11, height = 8.5)
-
-graphing_stuff(lreg_df)
 
 filter_options <- c('HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F',
                     'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'OSQ230')
 
-for (i in filter_options) {
-  graph_df_filtered <- lreg_df[lreg_df[[i]]=='Yes',]
-  for (j in filter_options) {
-    if (j==i) {next}
-    graph_df_filtered <- graph_df_filtered[graph_df_filtered[[j]]=='No',]
-  }
-  print(graph_df_filtered)
-  graphing_stuff(graph_df_filtered, i)
+ui <- fluidPage(
+  sidebarLayout( 
+    selectInput("cols", "Select Conditions:", 
+                choices = filter_options, multiple = TRUE
+    ), 
+    mainPanel(
+      girafeOutput(outputId = "interactivePlot", width = '1920px', height = '1080px'),
+      tableOutput(outputId = 'table')
+    )
+    # uiOutput("checkbox"),
+    # mainPanel = mainPanel(
+    #   girafeOutput('girafe_output', height = 600)
+    # )
+  ),
+)
+
+server <- function(input, output) {
+  filtered_data <- reactive({
+    req(input$cols)
+    # selected_cols <- c(input$cols, 'gen_health', 'Probability', 'Level')
+    # lreg_df[[lreg_df[[input$cols]]=='Yes']]
+    graphing_df <- lreg_df
+    for (i in filter_options) {
+      if (i %in% input$cols){
+        graphing_df <- graphing_df[graphing_df[[i]]=='Yes',]
+      } else {
+        graphing_df <- graphing_df[graphing_df[[i]]=='No',]
+      }
+    }
+    graphing_df %>% group_by(gen_health, Level) %>% summarise(Probability=mean(Probability))
+  })
+  output$interactivePlot <- renderGirafe({
+    graphing_df <- data.frame(filtered_data())
+    ggplot(graphing_df, mapping=aes(
+      x = factor(gen_health, levels = c('excellent', 'very_good', 'good', 'fair', 'poor')), 
+      y = Probability, 
+      fill = Level,
+      tooltip = Probability, data_id = Probability
+    )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
+      title = 'Depression Probability',
+      x = 'Reported General Health Status',
+      y = 'Probability of Outcome (0 to 1)',
+      hover_nearest = TRUE,
+      aes(name='Depression Categorical Level')
+    )
+    # + theme_economist() + 
+    #   scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
+  })
+  output$table <- renderTable({
+    filtered_data()
+  })
 }
 
-graph_df_filtered <- lreg_df
-for (i in filter_options) {
-  graph_df_filtered <- graph_df_filtered[graph_df_filtered[[i]]=='No',]
-}
-print(graph_df_filtered)
-graphing_stuff(graph_df_filtered, 'NONE')
+shinyApp(ui = ui, server = server)
 
 
-# TODO add interactive element to combine into one plot, rename condition names
+# for (i in filter_options) {
+#   graph_df_filtered <- lreg_df[lreg_df[[i]]=='Yes',]
+#   for (j in filter_options) {
+#     if (j==i) {next}
+#     graph_df_filtered <- graph_df_filtered[graph_df_filtered[[j]]=='No',]
+#   }
+#   print(graph_df_filtered)
+#   graphing_stuff(graph_df_filtered, i)
+# }
+# 
+# graph_df_filtered <- lreg_df
+# for (i in filter_options) {
+#   graph_df_filtered <- graph_df_filtered[graph_df_filtered[[i]]=='No',]
+# }
+# print(graph_df_filtered)
+# graphing_stuff(graph_df_filtered, 'NONE')
+
+
+# TODO add interactive element to combine into one plot, rename condition names, export shiny as html, 
