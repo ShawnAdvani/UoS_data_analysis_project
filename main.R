@@ -6,24 +6,24 @@ if (system.file(package='viridis')=="") {install.packages("viridis")}
 if (system.file(package='ggthemes')=="") {install.packages("ggthemes")}
 if (system.file(package='ggiraph')=="") {install.packages("ggiraph")}
 if (system.file(package='shiny')=="") {install.packages("shiny")}
+if (system.file(package='shinythemes')=="") {install.packages("shinythemes")}
 
 require(foreign)
 require(MASS)
 require(Hmisc)
 require(reshape2)
 
-
-library(ggplot2)
-library(ggiraph)
-library(shiny)
-library(tidyverse)
-library(janitor)
+require(ggplot2)
+require(ggiraph)
+require(shiny)
+require(shinythemes)
+require(tidyverse)
+require(janitor)
 source('func/cdc_parsing.R')
 source('func/stats_testing.R')
 
-library(viridis)
-library(ggthemes)
-
+require(viridis)
+require(ggthemes)
 
 # Load in 2021-2023 data using custom parsing function
 dep_df <- df_parser('data/DPQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/DPQ_L.htm')
@@ -162,19 +162,26 @@ lreg_df <- melt(reg_df_probs, id.vars = c(
   ), variable.name = "Level", value.name = "Probability", )
 
 graphing_stuff <- function(df=lreg_df, name='TOTAL') {
-  # graph_df <- df %>% group_by(gen_health, Level) %>% summarise(Probability=mean(Probability))
   output_plot <- ggplot(df, mapping=aes(
-    x = factor(gen_health, levels = c('excellent', 'very_good', 'good', 'fair', 'poor')), 
+    x = factor(gen_health, levels = c(
+      'Excellent'='excellent', 
+      'Very Good'='very_good', 
+      'Good'='good', 
+      'Fair'='fair', 
+      'Pool'='poor'
+      )), 
     y = Probability, 
     fill = Level,
-    tooltip = Probability, data_id = Probability
+    tooltip = glue('Probability: {round(Probability, 4)*100}%'), 
+    data_id = Probability
   )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
     title = 'Depression Probability',
-    x = 'Reported General Health Status',
+    x = 'Self Reported General Health Status',
     y = 'Probability of Outcome (0 to 1)',
     hover_nearest = TRUE,
     aes(name='Depression Categorical Level')
-  ) + theme_economist() + 
+  ) + scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
+    theme_economist() + 
     scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
   # ggsave(glue('figs/{name}.png'), width = 11, height = 8.5)
   interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
@@ -184,23 +191,36 @@ graphing_stuff <- function(df=lreg_df, name='TOTAL') {
 
 filter_options <- c('HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F',
                     'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'OSQ230')
+filter_options_labeled <- c(
+  'Uninsured Past Year'='HIQ210', 
+  'Seen a Mental Health Professional Past Year'='HUQ090', 
+  'Arthritis'='MCQ160A', 
+  'Congestive Heart Failure'='MCQ160B', 
+  'Angina'='MCQ160D', 
+  'Stroke'='MCQ160F',
+  'Thyroid Problems'='MCQ160M', 
+  'COPD/Emphasema/ChB'='MCQ160P', 
+  'Liver Condition'='MCQ160L', 
+  'Gallstones'='MCQ550', 
+  'Metal in Body'='OSQ230'
+)
 
 ui <- fluidPage(
+  theme = shinytheme("flatly"),
   sidebarLayout( 
-    selectInput("cols", "Select Conditions:", 
-                choices = filter_options, selected = filter_options, 
-                multiple = TRUE
-    ), 
+    sidebarPanel(
+      checkboxGroupInput("cols", "Select Conditions:", 
+                         choices = filter_options_labeled, selected = filter_options
+    ), tableOutput(outputId = 'table')), 
     mainPanel(
-      girafeOutput(outputId = "interactivePlot", width = '100%', height = NULL),
-      tableOutput(outputId = 'table')
+      girafeOutput(outputId = "interactivePlot", width = '100%', height = NULL)
     )
   ),
 )
 
 server <- function(input, output) {
   filtered_data <- reactive({
-    req(input$cols)
+    # req(input$cols)
     graphing_df <- lreg_df
     for (i in filter_options) {
       if (i %in% input$cols){
@@ -216,29 +236,13 @@ server <- function(input, output) {
     graphing_stuff(graphing_df)
   })
   output$table <- renderTable({
-    filtered_data()
+    table_df <- filtered_data()
+    table_df$Probability <- scales::percent(table_df$Probability, accuracy = 0.01)
+    table_df
   })
 }
 
 shinyApp(ui = ui, server = server)
 
+# TODO add comments, move custom functions to folders, write markdown and cookbook, clean up remaining files, export shiny as html
 
-# for (i in filter_options) {
-#   graph_df_filtered <- lreg_df[lreg_df[[i]]=='Yes',]
-#   for (j in filter_options) {
-#     if (j==i) {next}
-#     graph_df_filtered <- graph_df_filtered[graph_df_filtered[[j]]=='No',]
-#   }
-#   print(graph_df_filtered)
-#   graphing_stuff(graph_df_filtered, i)
-# }
-# 
-# graph_df_filtered <- lreg_df
-# for (i in filter_options) {
-#   graph_df_filtered <- graph_df_filtered[graph_df_filtered[[i]]=='No',]
-# }
-# print(graph_df_filtered)
-# graphing_stuff(graph_df_filtered, 'NONE')
-
-
-# TODO add interactive element to combine into one plot, rename condition names, export shiny as html, 
