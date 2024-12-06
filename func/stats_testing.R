@@ -2,22 +2,30 @@ if (system.file(package='janitor')=="") {install.packages('janitor')}
 library(janitor)
 library(glue)
 
+# Function that automatically tests statistical significance based on data type
 df_significance_testing <- function(df, dv, index) {
   print('Finding significant columns...')
+  # Create empty list to return significant variables
   affective_columns <- c()
-  if (class(df[[dv]])=='factor') {
+  if (class(df[[dv]])=='factor') {  #check for categorical dependent variable
     print('Dependent variable is categorical')
     for (i in colnames(df)) {
+      # skips unnecessary columns
       if (i==index|i==dv|i=='dv') {
         next
       }
       print(glue('Running test with {i} column...'))
+      # isolate dependent variable
       df_i <- df[c(dv, i)]
       colnames(df_i)[1:2] <- c('dv', 'iv')
+      # filter missing data
       df_i <- df_i %>% filter(iv!='Missing')
+      # run chi squared test on the data
       results <- df_run_chi_squared(df_i)
+      # error filtering
       if (class(results)!="htest") {
         next
+      # add columns as significant and skip insigificant columns based on p value
       } else if (results$p.value<0.05) {
         print(results)
         affective_columns <- c(affective_columns, i)
@@ -25,32 +33,43 @@ df_significance_testing <- function(df, dv, index) {
         next
       }
     }
-  } else if (class(df[[dv]])=='integer'|class(df[[dv]])=='numeric') {
+  } else if (class(df[[dv]])=='integer'|class(df[[dv]])=='numeric') { # check if dependent variable is numerical
     print('Dependent variable is numerical')
     for (i in colnames(df)) {
+      # skip unnecessary columns
       if (i==index|i==dv|i=='dv') {
         next
       }
       print(glue('Running test with {i} column...'))
       if (identical(sort(unique(df[[i]])), c("Missing", "No", "Yes"))) {
+        # isolate dependent variable
         df_i <- df[c(dv, i)]
         colnames(df_i)[1:2] <- c('dv', 'iv')
+        # filter missing data
         df_i <- df_i %>% filter(iv!='Missing')
+        # run mann witney test on the data
         results <- df_run_mann_witney(df_i)
+        # error filtering
         if (class(results)!="htest") {
           print(class(results))
           next
+        # add columns as significant and skip insigificant columns based on p value
         } else if (results$p.value<0.05) {
           affective_columns <- c(affective_columns, i)
         }
       } else {
+        # isolate dependent variable
         df_i <- df[c(dv, i)]
         colnames(df_i)[1:2] <- c('dv', 'iv')
+        # filter missing data
         df_i <- df_i %>% filter(iv!='Missing')
+        # run kruskal wallis test on the data
         results <- kruskal.test(df_i$iv, df_i$dv)
+        # error filtering
         if (class(results)!="htest") {
           print(class(results))
           next
+        # add columns as significant and skip insigificant columns based on p value
         } else if (results$p.value<0.05) {
           print(results)
           affective_columns <- c(affective_columns, i)
@@ -58,20 +77,24 @@ df_significance_testing <- function(df, dv, index) {
       }
     }
   } else {
+    # Error handling for unsupported data types
     print(glue('unsupported dependent variable type: {class(df[[dv]]}'))
   }
+  # return significant columns
   return(affective_columns)
 }
 
 
 
-# custom fuction to convert df into a matrix/table to be processed into chisq.test() function
+# custom fuctions to format the data properly for the respective tests
 df_run_mann_witney <- function(df) {
+  # recode value names to numbers
   df$iv <- recode(df$iv, "Yes"=1, 'No'=0)
   return(wilcox.test(df$iv, df$dv))
 }
 
 df_run_chi_squared <- function(df) {
+  # convert dataframe to table
   df_table <- table(df$dv, df$iv)
   results <- chisq.test(df_table)
   return(results)

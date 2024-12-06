@@ -26,10 +26,10 @@ require(viridis)
 require(ggthemes)
 
 # Load in 2021-2023 data using custom parsing function
-dep_df <- df_parser('data/DPQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/DPQ_L.htm')
-insur_df <- df_parser('data/HIQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/HIQ_L.htm')
-access_df <- df_parser('data/HUQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/HUQ_L.htm')
-cond_df <- df_parser('data/MCQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Nhanes/2021-2022/MCQ_L.htm')
+dep_df <- df_parser('data/DPQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/DPQ_L.htm')
+insur_df <- df_parser('data/HIQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/HIQ_L.htm')
+access_df <- df_parser('data/HUQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/HUQ_L.htm')
+cond_df <- df_parser('data/MCQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/MCQ_L.htm')
 ## Dataframe calculations and cleaning
 # convert missing, don't know, and refused responses to 0
 dep_df[dep_df==7|dep_df==9|is.na(dep_df)] <- 0
@@ -68,8 +68,8 @@ access_df$gen_health <- recode(access_df$HUQ010,
                         '5'='poor'
 )
 # access_df <- access_df %>% select(-HUQ010)
-access_df[['HUQ010']][access_df[['HUQ010']]==9] <- 7
-access_df[['HUQ090']][access_df[['HUQ090']]==9] <- 7
+# access_df[['HUQ010']][access_df[['HUQ010']]==9] <- 7
+# access_df[['HUQ090']][access_df[['HUQ090']]==9] <- 7
 
 pie(table(access_df$gen_health))
 
@@ -85,13 +85,14 @@ for (i in cond_columns) {
 # Merge other df into depression df
 df <- left_join(dep_df[c("SEQN", "dep_cat","dep_score")], 
                 insur_df[c("SEQN", "HIQ011", "HIQ210")], "SEQN")
-df <- left_join(df, access_df[c("SEQN", "gen_health", "HUQ010", "HUQ090")], "SEQN")
+df <- left_join(df, access_df[c("SEQN", "gen_health", "HUQ090")], "SEQN")
 df <- left_join(df, cond_df[c("SEQN", 'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B',
                             'MCQ160C', 'MCQ160D', 'MCQ160E', 'MCQ160F', 'MCQ160M',
                             'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230')], 
                 "SEQN")
 
 for (i in colnames(df)) {
+  # recode bivariate responses to Yes and No
   if (length(unique(df[[i]]))==3) {
     df[[i]] <- recode(df[[i]], '1' = 'Yes', '2' = 'No')
   }
@@ -99,70 +100,86 @@ for (i in colnames(df)) {
   print(unique(df[[i]]))
 }
 
+# run significance on both score and category depression responses
 sig_columns_score <- df_significance_testing(subset(df, select = -c(dep_cat)), 'dep_score', 'SEQN')
 sig_columns_cat <- df_significance_testing(subset(df, select = -c(dep_score)), 'dep_cat', 'SEQN')
 
-# df[df=='Missing'] <- NA
+# create score df for analysis
 score_df <- df[c('dep_score', sig_columns_score)]
-# score_df[score_df=='Missing'] <- NA
+# create category df for analysis (primary use)
 cat_df <- df[c('dep_cat', sig_columns_cat)]
-# cat_df[cat_df=='Missing'] <- NA
 cat_df <- na.omit(cat_df)
 
 ## LOGISTIC REGRESSION
 # Statistical testing
-m <- polr(formula = dep_cat ~ HIQ210 + HUQ090 + gen_health +  # AGQ030 + gen_health + MCQ010
+
+# fit the data to the ordinal logistic regression model
+m <- polr(formula = dep_cat ~ HIQ210 + HUQ090 + gen_health + AGQ030 + MCQ010 +
             MCQ160A + MCQ160B + MCQ160D + MCQ160F + MCQ160M + 
             MCQ160P + MCQ160L + MCQ550 + OSQ230, data = cat_df, Hess=TRUE)
+# display summary
 summary(m)
-
+# display coefficients
 (ctable <- coef(summary(m)))
+# calculate t statistic of variables
 p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+# calculate significance of variable 
 (ctable <- cbind(ctable, "p value" = p))
+# calcualte confidence intervals
 (ci <- confint(m))
+# calculate confidence interfals based on coefficients
 exp(coef(m))
 exp(cbind(OR = coef(m), ci))
 
+# function to calculate odds at each value being greater than or less than value
 sf <- function(y) {
   c('Y>=1' = qlogis(mean(y >= 1)),
     'Y>=2' = qlogis(mean(y >= 2)),
     'Y>=3' = qlogis(mean(y >= 3)))
 }
 
-(s <- with(cat_df, summary(as.numeric(dep_cat) ~ HIQ210 + HUQ090 + gen_health +  # AGQ030 + gen_health + MCQ010
+# calculate logistic scores based on calculations
+(s <- with(cat_df, summary(as.numeric(dep_cat) ~ HIQ210 + HUQ090 + gen_health + AGQ030 + MCQ010 +
                              MCQ160A + MCQ160B + MCQ160D + MCQ160F + MCQ160M + 
                              MCQ160P + MCQ160L + MCQ550 + OSQ230, fun=sf)))
-
+# display and plot impact of logit calculations
 s[, 4] <- s[, 4] - s[, 3]
 s[, 3] <- s[, 3] - s[, 3]
 s
 plot(s, which=1:3, pch=1:3, xlab='logit', main=' ', xlim=range(s[,3:4]))
 
 # OLR analysis
+# create dataframe with all variable possibilities
 reg_df <<- data.frame(
-  HIQ210 = rep(c('Yes', 'No'), 5120),
-  HUQ090 = rep(c('Yes', 'No'), 2560, each=2),
-  MCQ160A = rep(c('Yes', 'No'), 1280, each=4),
-  MCQ160B = rep(c('Yes', 'No'), 640, each=8),
-  MCQ160D = rep(c('Yes', 'No'), 320, each=16),
-  MCQ160F = rep(c('Yes', 'No'), 160, each=32),
-  MCQ160M = rep(c('Yes', 'No'), 80, each=64),
-  MCQ160P = rep(c('Yes', 'No'), 40, each=128),
-  MCQ160L = rep(c('Yes', 'No'), 20, each=256),
-  MCQ550 = rep(c('Yes', 'No'), 10, each=512),
-  OSQ230 = rep(c('Yes', 'No'), 5, each=1024),
-  gen_health = rep(c("good","very_good","excellent","fair","poor"), each=1024)
+  HIQ210 = rep(c('Yes', 'No'), 20480),
+  HUQ090 = rep(c('Yes', 'No'), 10240, each=2),
+  MCQ160A = rep(c('Yes', 'No'), 5120, each=4),
+  MCQ160B = rep(c('Yes', 'No'), 2560, each=8),
+  MCQ160D = rep(c('Yes', 'No'), 1280, each=16),
+  MCQ160F = rep(c('Yes', 'No'), 640, each=32),
+  MCQ160M = rep(c('Yes', 'No'), 320, each=64),
+  MCQ160P = rep(c('Yes', 'No'), 160, each=128),
+  MCQ160L = rep(c('Yes', 'No'), 80, each=256),
+  MCQ550 = rep(c('Yes', 'No'), 40, each=512),
+  OSQ230 = rep(c('Yes', 'No'), 20, each=1024),
+  AGQ030 = rep(c('Yes', 'No'), 10, each=2048),
+  MCQ010 = rep(c('Yes', 'No'), 5, each=4096),
+  gen_health = rep(c("good","very_good","excellent","fair","poor"), each=4096)
 )
 
+# calculate probability to each possible variable outcome
 reg_df_probs <- cbind(reg_df, predict(m, reg_df, type = "probs"))
 
+# add probabilities to each possible variable outcome in dataframe
 lreg_df <- melt(reg_df_probs, id.vars = c(
-  'HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F',
+  'HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F', 'AGQ030', 'MCQ010',
   'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'OSQ230', 'gen_health'
   ), variable.name = "Level", value.name = "Probability", )
 
-graphing_stuff <- function(df=lreg_df, name='TOTAL') {
+# graping function based on probability dataframe
+graphing_stuff <- function(df=lreg_df, name='') {
   output_plot <- ggplot(df, mapping=aes(
+    # set general health to the categorical x value
     x = factor(gen_health, levels = c(
       'Excellent'='excellent', 
       'Very Good'='very_good', 
@@ -170,27 +187,38 @@ graphing_stuff <- function(df=lreg_df, name='TOTAL') {
       'Fair'='fair', 
       'Pool'='poor'
       )), 
+    # set the probability to the y variable
     y = Probability, 
+    # set fill to be the depression level, making a seperate bar for each
     fill = Level,
+    # create tooltop to display the probability percent when hovered over
     tooltip = glue('Probability: {round(Probability, 4)*100}%'), 
+    # assign interactive element to probability variable
     data_id = Probability
+  # create the interactive bar chart
   )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
+    # labeling
     title = 'Depression Probability',
     x = 'Self Reported General Health Status',
     y = 'Probability of Outcome (0 to 1)',
+    # set hover to focus on mouse cursor
     hover_nearest = TRUE,
     aes(name='Depression Categorical Level')
+  # scale the probabilities as percentages
   ) + scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
+    # add theaming
     theme_economist() + 
     scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
-  # ggsave(glue('figs/{name}.png'), width = 11, height = 8.5)
+  # export interactive plot element 
   interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
-  # htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
+  # TODO htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
   return(interactive_plot)
 }
 
-filter_options <- c('HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F',
-                    'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'OSQ230')
+# add filter option TODO to be remmoved
+filter_options <- c('HIQ210', 'HUQ090', 'MCQ160A', 'MCQ160B', 'MCQ160D', 'MCQ160F', 
+                    'AGQ030', 'MCQ010', 'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'OSQ230')
+# add labels for the filter option
 filter_options_labeled <- c(
   'Uninsured Past Year'='HIQ210', 
   'Seen a Mental Health Professional Past Year'='HUQ090', 
@@ -205,36 +233,48 @@ filter_options_labeled <- c(
   'Metal in Body'='OSQ230'
 )
 
+# create ui element for shiny chart
 ui <- fluidPage(
+  # add theming to page
   theme = shinytheme("flatly"),
   sidebarLayout( 
     sidebarPanel(
+      # create check box filter option
       checkboxGroupInput("cols", "Select Conditions:", 
                          choices = filter_options_labeled, selected = filter_options
+    # create table element with relevant data
     ), tableOutput(outputId = 'table')), 
     mainPanel(
+      # create interactive graph element
       girafeOutput(outputId = "interactivePlot", width = '100%', height = NULL)
     )
   ),
 )
 
+# add server element to shiny plot for filtering
 server <- function(input, output) {
+  # create a filterig function
   filtered_data <- reactive({
-    # req(input$cols)
+    # create a new dataframe for filtering the output
     graphing_df <- lreg_df
+    # loop through the filter options
     for (i in filter_options) {
+      # assign checked variables to "yes" result and unchecked to "no" result
       if (i %in% input$cols){
         graphing_df <- graphing_df[graphing_df[[i]]=='Yes',]
       } else {
         graphing_df <- graphing_df[graphing_df[[i]]=='No',]
       }
     }
+    # pivot the graph to group the ppropriate format
     graphing_df %>% group_by(gen_health, Level) %>% summarise(Probability=mean(Probability))
   })
+  # assign the interactive plot to the appropriate css tag
   output$interactivePlot <- renderGirafe({
     graphing_df <- data.frame(filtered_data())
     graphing_stuff(graphing_df)
   })
+  # assign the table to the appropriate css tag
   output$table <- renderTable({
     table_df <- filtered_data()
     table_df$Probability <- scales::percent(table_df$Probability, accuracy = 0.01)
@@ -242,7 +282,8 @@ server <- function(input, output) {
   })
 }
 
+# run the shiny app as a local webpage
 shinyApp(ui = ui, server = server)
 
-# TODO add comments, move custom functions to folders, write markdown and cookbook, clean up remaining files, export shiny as html
+# TODO clean up remaining files, move custom functions to folders, write markdown and cookbook, export shiny as html
 

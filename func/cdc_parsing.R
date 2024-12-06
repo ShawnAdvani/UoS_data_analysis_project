@@ -42,11 +42,11 @@ df_parser <- function(data_file, metadata) {
   }
   # print metadata for dataframe
   print(info)
-  # codebook_data(info, str_sub(data_file, start = 6))
+  # codebook_data(info, str_sub(data_file, start = 6))  UNFINISHED FUNCTION DO NOT UNCOMMENT
   return(df)
 }
 
-# TODO make codebook function
+# TODO This was a function to automatically write the codebook based on previous data, I ran out of time and wasn't able to complete it. Though I may add it in the future for personal use
 # codebook_data <- function(df, data_name) {
 #   lines_to_write <- c()
 #   if (!file.exists("data/codebook.txt")) {
