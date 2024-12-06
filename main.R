@@ -129,7 +129,7 @@ filter_options_labeled <- c(
   'Metal in Body'='OSQ230'
 )
 
-# export png version of the script
+# export png version of the script note: this sometimes displays odd in RStudio but displays fine in the output file
 graphing_scores(lreg_df %>% group_by(gen_health, depression_level) %>% summarise(Probability=mean(Probability)))
 
 # run function to run app
