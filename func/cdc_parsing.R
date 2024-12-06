@@ -17,31 +17,45 @@ df_parser <- function(data_file, metadata) {
   # clean all rows and columns that only contain NA
   df <- df_raw[rowSums(is.na(df_raw)) != ncol(df_raw)-1, colSums(is.na(df_raw))<nrow(df_raw)]
   # webscrape documentation as meta
-  meta <- read_html(metadata)
-  # create dataframe with pertinent information
-  info <- data.frame(variable=character(), question=character(), data_type=character())
-  # loop to parse relevant descriptions for column codes
-  for (i in colnames(df)) {
-    # get column class
-    col_class <- class(df[[i]])
-    # get html code containing code description
-    title_meta <- meta %>% html_elements(xpath=glue("//*[contains(@id, '{i}')]"))
-    # corner case, manage stringe case error in if statement when title_meta is empty
-    if (length(title_meta)==0) {
-      # fix casing for i to collect metadata properly
-      i <- paste(str_sub(i, start=1, end=-2), str_to_lower(str_sub(i, start=-1)), sep='')
-      # attempt to collect title_meta again
-      title_meta <- meta %>% html_elements(xpath=glue("//*[contains(@id, '{i}')]"))
+  tryCatch(
+    {
+      meta <- read_html(metadata)
+      # create dataframe with pertinent information
+      info <- data.frame(variable=character(), question=character(), data_type=character())
+      # loop to parse relevant descriptions for column codes
+      for (i in colnames(df)) {
+        # get column class
+        col_class <- class(df[[i]])
+        # get html code containing code description
+        title_meta <- meta %>% html_elements(xpath=glue("//*[contains(@id, '{i}')]"))
+        # corner case, manage stringe case error in if statement when title_meta is empty
+        if (length(title_meta)==0) {
+          # fix casing for i to collect metadata properly
+          i <- paste(str_sub(i, start=1, end=-2), str_to_lower(str_sub(i, start=-1)), sep='')
+          # attempt to collect title_meta again
+          title_meta <- meta %>% html_elements(xpath=glue("//*[contains(@id, '{i}')]"))
+        }
+        # extract text from title_meta
+        test_data <- html_text(title_meta)
+        # extract final description for column code
+        desc <- str_trim(str_split_1(test_data, '-')[2])
+        # append column metadata to row
+        info[nrow(info) + 1,] = c(i, desc, col_class)
+      }
+      # print metadata for dataframe
+      print(info)
+    },
+    # state any errors that occur during webscraping
+    error=function(e) {
+      message('An Error Occurred')
+      print(e)
+    },
+    # state any warnings that occur during webscraping
+    warning=function(w) {
+      message('A Warning Occurred')
+      print(w)
     }
-    # extract text from title_meta
-    test_data <- html_text(title_meta)
-    # extract final description for column code
-    desc <- str_trim(str_split_1(test_data, '-')[2])
-    # append column metadata to row
-    info[nrow(info) + 1,] = c(i, desc, col_class)
-  }
-  # print metadata for dataframe
-  print(info)
+  )
   # codebook_data(info, str_sub(data_file, start = 6))  UNFINISHED FUNCTION DO NOT UNCOMMENT
   return(df)
 }
