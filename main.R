@@ -135,5 +135,3 @@ graphing_scores(lreg_df %>% group_by(gen_health, depression_level) %>% summarise
 # run function to run app
 run_app(lreg_df, sig_columns_cat, filter_options_labeled)
 
-# TODO export shiny online, write markdown and cookbook, export as pdf
-
