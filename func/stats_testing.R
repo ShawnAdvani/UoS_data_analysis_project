@@ -1,4 +1,9 @@
 if (system.file(package='janitor')=="") {install.packages('janitor')}
+if (system.file(package='foreign')=="") {install.packages('foreign')}
+if (system.file(package='MASS')=="") {install.packages('MASS')}
+if (system.file(package='Hmisc')=="") {install.packages('Hmisc')}
+if (system.file(package='reshape2')=="") {install.packages('reshape2')}
+
 library(janitor)
 library(glue)
 
@@ -84,7 +89,32 @@ df_significance_testing <- function(df, dv, index) {
   return(affective_columns)
 }
 
-
+olr_testing <- function(df, iv, dv) {
+  # fit the data to the ordinal logistic regression model
+  m <- polr(formula = as.formula(glue('{dv} ~ {paste(iv, collapse= "+")}')), data = df, Hess=TRUE)
+  # display summary
+  print(summary(m))
+  # display coefficients
+  (ctable <- coef(summary(m)))
+  # calculate t statistic of variables
+  p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+  # calculate significance of variable 
+  (ctable <- cbind(ctable, "p value" = p))
+  # calcualte confidence intervals
+  (ci <- confint(m))
+  # calculate confidence intervals based on coefficients
+  exp(coef(m))
+  print(exp(cbind(OR = coef(m), ci)))
+  
+  # calculate logistic scores based on calculations
+  (s <- with(df, summary(as.formula(glue('as.numeric({dv}) ~ {paste(iv, collapse= "+")}')), fun=sf)))
+  # display and plot impact of logit calculations
+  s[, 4] <- s[, 4] - s[, 3]
+  s[, 3] <- s[, 3] - s[, 3]
+  print(s)
+  plot(s, which=1:3, pch=1:3, xlab='logit', main=' ', xlim=range(s[,3:4]))
+  return(m)
+}
 
 # custom fuctions to format the data properly for the respective tests
 df_run_mann_witney <- function(df) {
@@ -98,5 +128,12 @@ df_run_chi_squared <- function(df) {
   df_table <- table(df$dv, df$iv)
   results <- chisq.test(df_table)
   return(results)
+}
+
+# function to calculate odds at each variable being greater than or less than value
+sf <- function(y) {
+  c('Y>=1' = qlogis(mean(y >= 1)),
+    'Y>=2' = qlogis(mean(y >= 2)),
+    'Y>=3' = qlogis(mean(y >= 3)))
 }
 

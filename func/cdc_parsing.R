@@ -7,6 +7,10 @@ library(haven)
 library(rvest)
 library(stringr)
 library(glue)
+require(foreign)
+require(MASS)
+require(Hmisc)
+require(reshape2)
 
 # custom function for parsing data (takes cdc file format xpt and documentation from cdc website)
 df_parser <- function(data_file, metadata) {
