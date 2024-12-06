@@ -1,5 +1,6 @@
 require(tidyverse)
 require(janitor)
+require(glue)
 source('func/cdc_parsing.R')
 source('func/stats_testing.R')
 source('func/visualisation.R')
@@ -130,7 +131,11 @@ filter_options_labeled <- c(
   'Metal in Body'='OSQ230'
 )
 
+# export png version of the script
+graphing_scores(lreg_df %>% group_by(gen_health, depression_level) %>% summarise(Probability=mean(Probability)))
+
+# run function to run app
 run_app(lreg_df, sig_columns_cat, filter_options_labeled)
 
-# TODO clean up remaining files, write markdown and cookbook, export shiny as html
+# TODO clean up remaining files, export shiny online, write markdown and cookbook, export as pdf
 

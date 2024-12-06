@@ -38,7 +38,6 @@ run_app <- function(df, filter_options, filter_options_labeled) {
     filtered_data <- reactive({
       # create a new dataframe for filtering the output
       graphing_df <- df
-      print(graphing_df)
       # loop through the filter options
       for (i in filter_options) {
         # assign checked variables to "yes" result and unchecked to "no" result
@@ -56,7 +55,7 @@ run_app <- function(df, filter_options, filter_options_labeled) {
     # assign the interactive plot to the appropriate css tag
     output$interactivePlot <- renderGirafe({
       graphing_df <- data.frame(filtered_data())
-      graphing_stuff(graphing_df)
+      graphing_scores(graphing_df, name='')
     })
     # assign the table to the appropriate css tag
     output$table <- renderTable({
@@ -71,7 +70,7 @@ run_app <- function(df, filter_options, filter_options_labeled) {
 }
 
 # graphing function based on probability dataframe
-graphing_stuff <- function(df=df, name='') {
+graphing_scores <- function(df=df, name='base') {
   output_plot <- ggplot(df, mapping=aes(
     # set general health to the categorical x value
     x = factor(gen_health, levels = c(
@@ -105,6 +104,8 @@ graphing_stuff <- function(df=df, name='') {
     scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
   # export interactive plot element 
   interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
-  # TODO htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
+  if (name != '') {
+    htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
+  }
   return(interactive_plot)
 }

@@ -4,8 +4,13 @@ if (system.file(package='MASS')=="") {install.packages('MASS')}
 if (system.file(package='Hmisc')=="") {install.packages('Hmisc')}
 if (system.file(package='reshape2')=="") {install.packages('reshape2')}
 
+# import dependencies
 library(janitor)
 library(glue)
+require(foreign)
+require(MASS)
+require(Hmisc)
+require(reshape2)
 
 # Function that automatically tests statistical significance based on data type
 df_significance_testing <- function(df, dv, index) {
