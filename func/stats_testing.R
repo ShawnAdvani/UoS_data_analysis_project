@@ -94,6 +94,7 @@ df_significance_testing <- function(df, dv, index) {
   return(affective_columns)
 }
 
+# Ordinal logistic statistical testing function
 olr_testing <- function(df, iv, dv) {
   # fit the data to the ordinal logistic regression model
   m <- polr(formula = as.formula(glue('{dv} ~ {paste(iv, collapse= "+")}')), data = df, Hess=TRUE)

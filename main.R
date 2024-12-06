@@ -15,7 +15,6 @@ cond_df <- df_parser('data/MCQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Pu
 # convert missing, don't know, and refused responses to 0
 dep_df[dep_df==7|dep_df==9|is.na(dep_df)] <- 0
 # calculate and add to df depression_score (dep_score - 0 to 27)
-# dep_df$dep_score <- rowSums(dep_df[,-1])
 dep_df_phq <- dep_df[,-11]
 dep_df$dep_score <- rowSums(dep_df_phq[,-1])
 # make bins with categories based on Kurt et. al. (1997)
@@ -90,10 +89,9 @@ cat_df <- df[c('dep_cat', sig_columns_cat)]
 cat_df <- na.omit(cat_df)
 
 ## LOGISTIC REGRESSION
-# Ordinal logistic statistical testing function
+# create ordinal logistic regression model using a custom function
 m <- olr_testing(cat_df, sig_columns_cat, 'dep_cat')
 
-# OLR analysis
 # create dataframe with all variable possibilities
 reg_df <<- data.frame(
   HIQ210 = rep(c('Yes', 'No'), 5120),
@@ -137,5 +135,5 @@ graphing_scores(lreg_df %>% group_by(gen_health, depression_level) %>% summarise
 # run function to run app
 run_app(lreg_df, sig_columns_cat, filter_options_labeled)
 
-# TODO clean up remaining files, export shiny online, write markdown and cookbook, export as pdf
+# TODO export shiny online, write markdown and cookbook, export as pdf
 

@@ -105,6 +105,7 @@ graphing_scores <- function(df=df, name='base') {
   # export interactive plot element 
   interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
   if (name != '') {
+    # export graph as html files
     htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
   }
   return(interactive_plot)
