@@ -9,7 +9,6 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Shawn Advani" />
 
 <meta name="date" content="2024-12-07" />
 
@@ -1590,7 +1589,6 @@ border-radius: 0px;
 
 
 <h1 class="title toc-ignore">PSY 6422 Project</h1>
-<h4 class="author">Shawn Advani</h4>
 <h4 class="date">2024-12-07</h4>
 
 </div>
@@ -1602,15 +1600,15 @@ border-radius: 0px;
 factors that may contribute to depression. With research into available
 databases and existing data, the topic was further refined to include
 medical status and existing conditions. This resulted in the following
-question “To what extend to different medical statuses, including
+question, “To what extend do different medical statuses, including
 availability and visitations, affect depression with respect to
-percieved physical state?”</p>
+perceived physical wellbeing?”</p>
 </div>
 <div id="packages" class="section level1">
 <h1>Packages</h1>
 <p>A host of different packages were used throughout the process. This
-was split across four different files, separated for organisational
-purposes, but is presented here in full.</p>
+and much of the code was split across four different files, separated
+for organisational purposes, but is presented here in full.</p>
 </div>
 <div id="data-origin" class="section level1">
 <h1>Data Origin</h1>
@@ -1649,12 +1647,9 @@ relating to the respective questionnaires as described below.</p>
 <h1>Data Parsing</h1>
 <p>Parsing the data done in the following function, it processes the
 .xpt files into dataframe objects. The function also utilises
-webscraping elements to display information about the specific
-variables. This was originally intended to be paired with another
-function to automate the codebook building process, which is planned to
-be added following the submission of this project. The function is
-specifically built to work with any CDC questionnaire, intended for
-extended repeatability.</p>
+webscraping elements to display information about the specific variables
+and is specifically built to work with any CDC questionnaire, intended
+for extended repeatability.</p>
 <pre class="r"><code># custom function for parsing data (takes cdc file format xpt and documentation from cdc website)
 df_parser &lt;- function(data_file, metadata) {
   # print file name
@@ -1876,7 +1871,7 @@ df_significance_testing &lt;- function(df, dv, index) {
   # return significant columns
   return(affective_columns)
 }</code></pre>
-<p>The reuslting variables were found as significant as a result:</p>
+<p>The following variables were found to be significant as a result:</p>
 <pre><code> [1] &quot;HIQ210&quot;     &quot;gen_health&quot; &quot;HUQ090&quot;     &quot;MCQ160A&quot;    &quot;MCQ160B&quot;   
  [6] &quot;MCQ160D&quot;    &quot;MCQ160F&quot;    &quot;MCQ160M&quot;    &quot;MCQ160P&quot;    &quot;MCQ160L&quot;   
 [11] &quot;MCQ550&quot;     &quot;OSQ230&quot;    </code></pre>
@@ -1962,19 +1957,89 @@ output a static application with hover capability.</p>
 </div>
 <div id="final-visualisation" class="section level2">
 <h2>Final Visualisation</h2>
-<!-- !![The final plot was implemented on a shiny server. The account is a free tier with limited active hours per month, if there are any issues viewing the output the graph can also be viewed by running the source file to completion or by contacting the author to re-spin the deployment.](https://shawnadvani.shinyapps.io/UoS_data_analysis_project/) -->
 <iframe height="700" width="150%" frameborder="no" src="https://shawnadvani.shinyapps.io/UoS_data_analysis_project/"> 
 </iframe>
-<p>May take some time to load Server Live Location: <a href="https://shawnadvani.shinyapps.io/UoS_data_analysis_project/" class="uri">https://shawnadvani.shinyapps.io/UoS_data_analysis_project/</a>
-<!-- ![](figs/base.html) --></p>
+<!-- ![Representation of Chart](figs/viz240188991.png) -->
+<!-- The graph includes interactive filtering options using the following block of code. -->
+<pre class="r"><code># add labels for the filter option
+filter_options_labeled &lt;- c(
+  &#39;Uninsured Past Year&#39;=&#39;HIQ210&#39;, 
+  &#39;Seen a Mental Health Professional Past Year&#39;=&#39;HUQ090&#39;, 
+  &#39;Arthritis&#39;=&#39;MCQ160A&#39;, 
+  &#39;Congestive Heart Failure&#39;=&#39;MCQ160B&#39;, 
+  &#39;Angina&#39;=&#39;MCQ160D&#39;, 
+  &#39;Stroke&#39;=&#39;MCQ160F&#39;,
+  &#39;Thyroid Problems&#39;=&#39;MCQ160M&#39;, 
+  &#39;COPD/Emphasema/ChB&#39;=&#39;MCQ160P&#39;, 
+  &#39;Liver Condition&#39;=&#39;MCQ160L&#39;, 
+  &#39;Gallstones&#39;=&#39;MCQ550&#39;,
+  &#39;Metal in Body&#39;=&#39;OSQ230&#39;
+)
+
+# function to initialise graphing and implementation of shiny elements
+run_app &lt;- function(df, filter_options, filter_options_labeled) {
+  # create ui element for shiny chart
+  ui &lt;- fluidPage(
+    # add theming to page
+    theme = shinytheme(&quot;flatly&quot;),
+    sidebarLayout( 
+      sidebarPanel(
+        # create check box filter option
+        checkboxGroupInput(&quot;cols&quot;, &quot;Select Conditions:&quot;, 
+                           choices = filter_options_labeled, selected = filter_options
+        # create table element with relevant data
+        ), tableOutput(outputId = &#39;table&#39;), width = 2), 
+      mainPanel(
+        # create interactive graph element
+        girafeOutput(outputId = &quot;interactivePlot&quot;, width = &#39;100%&#39;, height = NULL)
+      )
+    ),
+  )
+  
+  # add server element to shiny plot for filtering
+  server &lt;- function(input, output) {
+    # create a filterig function
+    filtered_data &lt;- reactive({
+      # create a new dataframe for filtering the output
+      graphing_df &lt;- df
+      # loop through the filter options
+      for (i in filter_options) {
+        # assign checked variables to &quot;yes&quot; result and unchecked to &quot;no&quot; result
+        if (i == &#39;gen_health&#39;) {
+          next
+        } else if (i %in% input$cols){
+          graphing_df &lt;- graphing_df[graphing_df[[i]]==&#39;Yes&#39;,]
+        } else {
+          graphing_df &lt;- graphing_df[graphing_df[[i]]==&#39;No&#39;,]
+        }
+      }
+      # pivot the graph to group the appropriate format
+      graphing_df %&gt;% group_by(gen_health, depression_level) %&gt;% summarise(Probability=mean(Probability))
+    })
+    # assign the interactive plot to the appropriate css tag
+    output$interactivePlot &lt;- renderGirafe({
+      graphing_df &lt;- data.frame(filtered_data())
+      graphing_scores(graphing_df, name=&#39;&#39;)
+    })
+    # assign the table to the appropriate css tag
+    output$table &lt;- renderTable({
+      table_df &lt;- filtered_data()
+      table_df$Probability &lt;- scales::percent(table_df$Probability, accuracy = 0.01)
+      table_df
+    })
+  }
+  
+  # run the shiny app as a local webpage
+  shinyApp(ui = ui, server = server)
+}</code></pre>
 </div>
 <div id="analysis" class="section level2">
 <h2>Analysis</h2>
 <p>According to the data, the primary variable correlated to a high
 depression score is having visited a mental health professional within
-the last year. All other variables, when this one is taken account, is
-not high enough to surpass any other rank. This implies that individuals
-who have had recent mental health issues are a greater indication of
+the last year. All other variables, when this one is removed, is not
+high enough to surpass any other rank. This implies that having visited
+a mental health provider within a year is a greater indication of
 depression than any chronic condition or insurance status. However,
 lower general perceived health also lead to higher depression score
 rates. In all cases excellent general perceived health had minimal
@@ -1984,22 +2049,22 @@ highest.</p>
 </div>
 <div id="limitations" class="section level2">
 <h2>Limitations</h2>
-<p>Some issues come with the data limitation. Due to the nature of these
-questionnaire studies having the majority of sections empty and the
-necessities of the ordinal logistic regression model for complete data,
-almost half the data entries were removed. This may have significantly
-impacted the outcome of the study, decreasing the power and removing
-influential data points. This can be combatted in the future by
-recording empty data points, however there are other concerns with that
-approach with regards to bias and precision.</p>
+<p>There are some issues related to the data. Due to these questionnaire
+studies having the majority of questions unanswered and the necessities
+of the ordinal logistic regression model for complete data, almost half
+the data entries were removed. This may have significantly impacted the
+outcome of the study, decreasing the power and removing influential data
+points. This can be combated in the future by recording empty data
+points, however there are other concerns with that approach with regards
+to bias and precision.</p>
 </div>
 <div id="further-research" class="section level2">
 <h2>Further Research</h2>
-<p>Potential research can be implemented by addin in more years to the
+<p>Potential research can be conducted by adding in more dates to the
 algorithm. Having dates be a factor, especially with COVID data being
 represented, can show a before and after to these trends. There are also
-other questionnaires, such as dietary or demographic data, that could
-also be analysed within this context.</p>
+other questionnaires, such as dietary or demographic data, that could be
+analysed within this context.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" line-spacing="2">
 <div id="ref-R-ggthemes" class="csl-entry">
 Arnold, J. B. (2024). <em>Ggthemes: Extra themes, scales and geoms for

@@ -1,9 +1,11 @@
 ---
 title: "PSY 6422 Project"
+# author: "Shawn Advani"
+# Registration number: "240188991"
 date: "`r Sys.Date()`"
 output:
   html_document:
-    rmdformats::downcute: null
+    rmdformats::downcute:
     code_folding: show
     self_contained: true
     thumbnails: false
@@ -45,11 +47,11 @@ knitr::write_bib(c(.packages(), 'ggiraph', 'ggplot2', 'ggthemes', 'glue', 'haven
 
 # Project Statement
 
-The primary inspiration of this project was to understand external factors that may contribute to depression. With research into available databases and existing data, the topic was further refined to include medical status and existing conditions. This resulted in the following question "To what extend to different medical statuses, including availability and visitations, affect depression with respect to percieved physical state?"
+The primary inspiration of this project was to understand external factors that may contribute to depression. With research into available databases and existing data, the topic was further refined to include medical status and existing conditions. This resulted in the following question, "To what extend do different medical statuses, including availability and visitations, affect depression with respect to perceived physical wellbeing?"
 
 # Packages
 
-A host of different packages were used throughout the process. This was split across four different files, separated for organisational purposes, but is presented here in full.
+A host of different packages were used throughout the process. This and much of the code was split across four different files, separated for organisational purposes, but is presented here in full.
 
 ```{r libraries, warning=FALSE, message=FALSE, results = "hide"}
 require(tidyverse)
@@ -84,7 +86,7 @@ https://wwwn.cdc.gov/nchs/nhanes/search/datapage.aspx?Component=Questionnaire&Cy
 
 # Data Parsing
 
-Parsing the data done in the following function, it processes the .xpt files into dataframe objects. The function also utilises webscraping elements to display information about the specific variables. This was originally intended to be paired with another function to automate the codebook building process, which is planned to be added following the submission of this project. The function is specifically built to work with any CDC questionnaire, intended for extended repeatability.
+Parsing the data done in the following function, it processes the .xpt files into dataframe objects. The function also utilises webscraping elements to display information about the specific variables and is specifically built to work with any CDC questionnaire, intended for extended repeatability.
 
 ```{r parse_to_df, echo=TRUE, message=FALSE, warning=FALSE}
 # custom function for parsing data (takes cdc file format xpt and documentation from cdc website)
@@ -227,13 +229,6 @@ df_run_chi_squared <- function(df) {
   results <- chisq.test(df_table)
   return(results)
 }
-
-# function to calculate odds at each variable being greater than or less than value
-sf <- function(y) {
-  c('Y>=1' = qlogis(mean(y >= 1)),
-    'Y>=2' = qlogis(mean(y >= 2)),
-    'Y>=3' = qlogis(mean(y >= 3)))
-}
 ```
 
 
@@ -335,7 +330,7 @@ df_significance_testing <- function(df, dv, index) {
 }
 ```
 
-The reuslting variables were found as significant as a result:
+The following variables were found to be significant as a result:
 
 ```{r significant_columns, message=FALSE, warning=FALSE, include=FALSE}
 sig_columns_score <- df_significance_testing(subset(df, select = -c(dep_cat)), 'dep_score', 'SEQN')
@@ -357,6 +352,14 @@ Using the previously collected variables, an ordinal logistic regression model w
 
 ```{r olr_model, echo=FALSE, message=FALSE, warning=FALSE}
 olr_testing <- function(df, iv, dv) {
+  
+  # function to calculate odds at each variable being greater than or less than value
+  sf <- function(y) {
+    c('Y>=1' = qlogis(mean(y >= 1)),
+      'Y>=2' = qlogis(mean(y >= 2)),
+      'Y>=3' = qlogis(mean(y >= 3)))
+  }
+  
   # fit the data to the ordinal logistic regression model
   m <- polr(formula = as.formula(glue('{dv} ~ {paste(iv, collapse= "+")}')), data = df, Hess=TRUE)
   # display summary
@@ -406,21 +409,6 @@ reg_df_probs <- cbind(reg_df, predict(m, reg_df, type = "probs"))
 
 # add probabilities to each possible variable outcome in dataframe
 lreg_df <- melt(reg_df_probs, id.vars = sig_columns_cat, variable.name = "depression_level", value.name = "Probability", )
-
-# add labels for the filter option
-filter_options_labeled <- c(
-  'Uninsured Past Year'='HIQ210', 
-  'Seen a Mental Health Professional Past Year'='HUQ090', 
-  'Arthritis'='MCQ160A', 
-  'Congestive Heart Failure'='MCQ160B', 
-  'Angina'='MCQ160D', 
-  'Stroke'='MCQ160F',
-  'Thyroid Problems'='MCQ160M', 
-  'COPD/Emphasema/ChB'='MCQ160P', 
-  'Liver Condition'='MCQ160L', 
-  'Gallstones'='MCQ550',
-  'Metal in Body'='OSQ230'
-)
 ```
 
 # Visualisation and Analysis
@@ -473,31 +461,94 @@ graphing_scores <- function(df=df, name='base') {
 ```
 
 ## Final Visualisation
-Removed due to name being in embed url
+```{r echo=FALSE, message=TRUE, warning=TRUE}
+knitr::include_app('https://shawnadvani.shinyapps.io/UoS_data_analysis_project/')
+```
+<!-- ![Representation of Chart](figs/viz240188991.png) -->
+<!-- The graph includes interactive filtering options using the following block of code. -->
+
+```{r run_app, echo=TRUE, message=FALSE, warning=FALSE}
+# add labels for the filter option
+filter_options_labeled <- c(
+  'Uninsured Past Year'='HIQ210', 
+  'Seen a Mental Health Professional Past Year'='HUQ090', 
+  'Arthritis'='MCQ160A', 
+  'Congestive Heart Failure'='MCQ160B', 
+  'Angina'='MCQ160D', 
+  'Stroke'='MCQ160F',
+  'Thyroid Problems'='MCQ160M', 
+  'COPD/Emphasema/ChB'='MCQ160P', 
+  'Liver Condition'='MCQ160L', 
+  'Gallstones'='MCQ550',
+  'Metal in Body'='OSQ230'
+)
+
+# function to initialise graphing and implementation of shiny elements
+run_app <- function(df, filter_options, filter_options_labeled) {
+  # create ui element for shiny chart
+  ui <- fluidPage(
+    # add theming to page
+    theme = shinytheme("flatly"),
+    sidebarLayout( 
+      sidebarPanel(
+        # create check box filter option
+        checkboxGroupInput("cols", "Select Conditions:", 
+                           choices = filter_options_labeled, selected = filter_options
+        # create table element with relevant data
+        ), tableOutput(outputId = 'table'), width = 2), 
+      mainPanel(
+        # create interactive graph element
+        girafeOutput(outputId = "interactivePlot", width = '100%', height = NULL)
+      )
+    ),
+  )
+  
+  # add server element to shiny plot for filtering
+  server <- function(input, output) {
+    # create a filterig function
+    filtered_data <- reactive({
+      # create a new dataframe for filtering the output
+      graphing_df <- df
+      # loop through the filter options
+      for (i in filter_options) {
+        # assign checked variables to "yes" result and unchecked to "no" result
+        if (i == 'gen_health') {
+          next
+        } else if (i %in% input$cols){
+          graphing_df <- graphing_df[graphing_df[[i]]=='Yes',]
+        } else {
+          graphing_df <- graphing_df[graphing_df[[i]]=='No',]
+        }
+      }
+      # pivot the graph to group the appropriate format
+      graphing_df %>% group_by(gen_health, depression_level) %>% summarise(Probability=mean(Probability))
+    })
+    # assign the interactive plot to the appropriate css tag
+    output$interactivePlot <- renderGirafe({
+      graphing_df <- data.frame(filtered_data())
+      graphing_scores(graphing_df, name='')
+    })
+    # assign the table to the appropriate css tag
+    output$table <- renderTable({
+      table_df <- filtered_data()
+      table_df$Probability <- scales::percent(table_df$Probability, accuracy = 0.01)
+      table_df
+    })
+  }
+  
+  # run the shiny app as a local webpage
+  shinyApp(ui = ui, server = server)
+}
+```
 
 ## Analysis
 
-According to the data, the primary variable correlated to a high depression score is having visited a mental health professional within the last year. All other variables, when this one is taken account, is not high enough to surpass any other rank. This implies that individuals who have had recent mental health issues are a greater indication of depression than any chronic condition or insurance status. However, lower general perceived health also lead to higher depression score rates. In all cases excellent general perceived health had minimal depression as the majority, while poor general percieved health ahd varying results including some where severe depression was the highest.
+According to the data, the primary variable correlated to a high depression score is having visited a mental health professional within the last year. All other variables, when this one is removed, is not high enough to surpass any other rank. This implies that having visited a mental health provider within a year is a greater indication of depression than any chronic condition or insurance status. However, lower general perceived health also lead to higher depression score rates. In all cases excellent general perceived health had minimal depression as the majority, while poor general percieved health ahd varying results including some where severe depression was the highest.
 
 ## Limitations
 
-Some issues come with the data limitation. Due to the nature of these questionnaire studies having the majority of sections empty and the necessities of the ordinal logistic regression model for complete data, almost half the data entries were removed. This may have significantly impacted the outcome of the study, decreasing the power and removing influential data points. This can be combatted in the future by recording empty data points, however there are other concerns with that approach with regards to bias and precision.
+There are some issues related to the data. Due to these questionnaire studies having the majority of questions unanswered and the necessities of the ordinal logistic regression model for complete data, almost half the data entries were removed. This may have significantly impacted the outcome of the study, decreasing the power and removing influential data points. This can be combated in the future by recording empty data points, however there are other concerns with that approach with regards to bias and precision.
 
 ## Further Research
 
-Potential research can be implemented by addin in more years to the algorithm. Having dates be a factor, especially with COVID data being represented, can show a before and after to these trends. There are also other questionnaires, such as dietary or demographic data, that could also be analysed within this context.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Potential research can be conducted by adding in more dates to the algorithm. Having dates be a factor, especially with COVID data being represented, can show a before and after to these trends. There are also other questionnaires, such as dietary or demographic data, that could be analysed within this context.
