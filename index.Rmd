@@ -1,7 +1,5 @@
 ---
 title: "PSY 6422 Project"
-author: "Shawn Advani"
-Registration number: "240188991"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -475,16 +473,7 @@ graphing_scores <- function(df=df, name='base') {
 ```
 
 ## Final Visualisation
-<!-- !![The final plot was implemented on a shiny server. The account is a free tier with limited active hours per month, if there are any issues viewing the output the graph can also be viewed by running the source file to completion or by contacting the author to re-spin the deployment.](https://shawnadvani.shinyapps.io/UoS_data_analysis_project/) -->
-
-```{r echo=FALSE, message=TRUE, warning=TRUE}
-knitr::include_app('https://shawnadvani.shinyapps.io/UoS_data_analysis_project/')
-# htmltools::
-# tags$iframe('figs/base.html')
-```
-May take some time to load
-Server Live Location: https://shawnadvani.shinyapps.io/UoS_data_analysis_project/
-<!-- ![](figs/base.html) -->
+Removed due to name being in embed url
 
 ## Analysis
 

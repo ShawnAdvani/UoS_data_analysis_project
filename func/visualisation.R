@@ -71,7 +71,7 @@ run_app <- function(df, filter_options, filter_options_labeled) {
 }
 
 # graphing function based on probability dataframe
-graphing_scores <- function(df=df, name='base') {
+graphing_scores <- function(df=df, name='viz240188991') {
   output_plot <- ggplot(df, mapping=aes(
     # set general health to the categorical x value
     x = factor(gen_health, levels = c(
