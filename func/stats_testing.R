@@ -1,11 +1,10 @@
-if (system.file(package='janitor')=="") {install.packages('janitor')}
+# check if necessary packages are installed
 if (system.file(package='foreign')=="") {install.packages('foreign')}
 if (system.file(package='MASS')=="") {install.packages('MASS')}
 if (system.file(package='Hmisc')=="") {install.packages('Hmisc')}
 if (system.file(package='reshape2')=="") {install.packages('reshape2')}
 
 # import dependencies
-library(janitor)
 library(glue)
 require(foreign)
 require(MASS)

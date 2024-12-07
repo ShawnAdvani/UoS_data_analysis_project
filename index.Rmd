@@ -1,0 +1,514 @@
+---
+title: "PSY 6422 Project"
+author: "Shawn Advani"
+Registration number: "240188991"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    rmdformats::downcute: null
+    code_folding: show
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    downcute_theme: chaos
+    toc: true
+    toc_float: true
+  pdf_document:
+    toc: true
+    number_sections: true
+  word_document:
+    toc: true
+link-citations: true
+bibliography:
+- references.bib
+- packages.bib
+csl: apa.csl
+nocite: '@*'
+---
+
+```{r cite-packages, eval=FALSE, include=FALSE}
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print = "75")
+knitr::opts_chunk$set(
+  echo = FALSE, cache = FALSE, prompt = FALSE,
+  tidy = FALSE, comment = NA,
+  message = FALSE, warning = FALSE
+)
+opts_knit$set(width = 75)
+
+# Create a package requirement .bib file
+knitr::write_bib(c(.packages(), 'ggiraph', 'ggplot2', 'ggthemes', 'glue', 'haven', 'Hmisc', 'janitor', 'reshape', 'rvest', 'shiny', 'shinythemes', 'stringr', 'tidyvers', 'viridis', 'foreign', 'MASS'), 'packages.bib')
+```
+
+# Project Statement
+
+The primary inspiration of this project was to understand external factors that may contribute to depression. With research into available databases and existing data, the topic was further refined to include medical status and existing conditions. This resulted in the following question "To what extend to different medical statuses, including availability and visitations, affect depression with respect to percieved physical state?"
+
+# Packages
+
+A host of different packages were used throughout the process. This was split across four different files, separated for organisational purposes, but is presented here in full.
+
+```{r libraries, warning=FALSE, message=FALSE, results = "hide"}
+require(tidyverse)
+require(glue)
+require(ggplot2)
+require(ggiraph)
+require(shiny)
+require(shinythemes)
+require(viridis)
+require(ggthemes)
+library(glue)
+require(foreign)
+require(MASS)
+require(Hmisc)
+require(reshape2)
+library(haven)
+library(rvest)
+library(stringr)
+```
+
+# Data Origin
+
+The data originated from the CDC National Center for Health Statistics (2024). The data was split across four different .xpt files, relating to the respective questionnaires as described below.
+
+File Name | Basic Description
+----------|------------------
+DPQ_L.xpt | Depression Screening
+HIQ_L.xpt | Insurance Information
+HUQ_L.xpt | Haspital Usage
+MCQ_L.xpt | Diagnosed Conditions
+https://wwwn.cdc.gov/nchs/nhanes/search/datapage.aspx?Component=Questionnaire&Cycle
+
+# Data Parsing
+
+Parsing the data done in the following function, it processes the .xpt files into dataframe objects. The function also utilises webscraping elements to display information about the specific variables. This was originally intended to be paired with another function to automate the codebook building process, which is planned to be added following the submission of this project. The function is specifically built to work with any CDC questionnaire, intended for extended repeatability.
+
+```{r parse_to_df, echo=TRUE, message=FALSE, warning=FALSE}
+# custom function for parsing data (takes cdc file format xpt and documentation from cdc website)
+df_parser <- function(data_file, metadata) {
+  # print file name
+  print(str_sub(data_file, start = 6, end = -5))
+  # load in file
+  df_raw <- read_xpt(data_file)
+  # clean all rows and columns that only contain NA
+  df <- df_raw[rowSums(is.na(df_raw)) != ncol(df_raw)-1, colSums(is.na(df_raw))<nrow(df_raw)]
+  # webscrape documentation as meta
+  tryCatch(
+    {
+      meta <- read_html(metadata)
+      # create dataframe with pertinent information
+      info <- data.frame(variable=character(), question=character(), data_type=character())
+      # loop to parse relevant descriptions for column codes
+      for (i in colnames(df)) {
+        # get column class
+        col_class <- class(df[[i]])
+        # get html code containing code description
+        title_meta <- meta %>% html_elements(xpath=glue("//*[contains(@id, '{i}')]"))
+        # corner case, manage stringe case error in if statement when title_meta is empty
+        if (length(title_meta)==0) {
+          # fix casing for i to collect metadata properly
+          i <- paste(str_sub(i, start=1, end=-2), str_to_lower(str_sub(i, start=-1)), sep='')
+          # attempt to collect title_meta again
+          title_meta <- meta %>% html_elements(xpath=glue("//*[contains(@id, '{i}')]"))
+        }
+        # extract text from title_meta
+        test_data <- html_text(title_meta)
+        # extract final description for column code
+        desc <- str_trim(str_split_1(test_data, '-')[2])
+        # append column metadata to row
+        info[nrow(info) + 1,] = c(i, desc, col_class)
+      }
+      # print metadata for dataframe
+      print(info)
+    },
+    # state any errors that occur during webscraping
+    error=function(e) {
+      message('An Error Occurred')
+      print(e)
+    },
+    # state any warnings that occur during webscraping
+    warning=function(w) {
+      message('A Warning Occurred')
+      print(w)
+    }
+  )
+  return(df)
+}
+```
+
+### Output From Data
+
+```{r data_parse, echo=FALSE}
+dep_df <- df_parser('data/DPQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/DPQ_L.htm')
+insur_df <- df_parser('data/HIQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/HIQ_L.htm')
+access_df <- df_parser('data/HUQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/HUQ_L.htm')
+cond_df <- df_parser('data/MCQ_L.XPT', 'https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/MCQ_L.htm')
+```
+
+```{r df_cleaning, message=FALSE, warning=FALSE, include=FALSE}
+## Dataframe calculations and cleaning
+# convert missing, don't know, and refused responses to 0
+dep_df[dep_df==7|dep_df==9|is.na(dep_df)] <- 0
+# calculate and add to df depression_score (dep_score - 0 to 27)
+dep_df_phq <- dep_df[,-11]
+dep_df$dep_score <- rowSums(dep_df_phq[,-1])
+# make bins with categories based on Kurt et. al. (1997)
+break_points <- c(0,4,9,14,19,27)
+dep_df$dep_group <- cut(dep_df$dep_score, breaks=break_points, 
+                      include.lowest=1, right=1) 
+dep_df$dep_cat <- recode(dep_df$dep_group, 
+                         "[0,4]" = "minimal", 
+                         "(4,9]" = "mild", 
+                         "(9,14]" = "moderate",
+                         "(14,19]" = "moderate/severe",
+                         "(19,27]" = "severe")
+
+# plot histogram scores of depression_score
+ggplot(dep_df, aes(dep_score, x=)) + geom_histogram(breaks=break_points) + labs(title = 'Depression Counts', x = 'Depression Score', y = 'Individual Count') + theme_economist()
+
+# replace NA/missing in insur_df to 7 (refused response)
+insur_df[["HIQ210"]][is.na(insur_df[["HIQ210"]])|insur_df[["HIQ210"]]==9] <- 7
+insur_df[["HIQ011"]][is.na(insur_df[["HIQ011"]])|insur_df[["HIQ011"]]==9] <- 7
+
+# ggplot(insur_df %>% filter(HIQ210==1|HIQ210==2), aes(HIQ210)) +
+#   geom_bar()
+
+# recode general health condition to qeustionnaire categories
+access_df$gen_health <- recode(access_df$HUQ010,
+                        '1'='excellent',
+                        '2'='very_good',
+                        '3'='good',
+                        '4'='fair',
+                        '5'='poor'
+)
+# pie(table(access_df$gen_health))
+
+# replace NA/missing in access_df to 7 (refused response) 
+access_df[['HUQ090']][access_df[['HUQ090']]==9] <- 7
+
+# cleaning condition data
+cond_columns <- c(
+  'MCQ010', 'AGQ030', 'MCQ160A', 'MCQ160B', 'MCQ160C', 'MCQ160D', 'MCQ160E', 
+  'MCQ160F', 'MCQ160M', 'MCQ160P', 'MCQ160L', 'MCQ550', 'MCQ220', 'OSQ230'
+)
+for (i in cond_columns) {
+  cond_df[[i]][cond_df[[i]]==9|cond_df[[i]]==7|is.na(cond_df[[i]])] <- 7
+}
+
+# Merge appropriate variables from other dfs into depression df
+df <- left_join(dep_df[c("SEQN", "dep_cat","dep_score")], 
+                insur_df[c("SEQN", "HIQ011", "HIQ210")], "SEQN")
+df <- left_join(df, access_df[c("SEQN", "gen_health", "HUQ090")], "SEQN")
+df <- left_join(df, cond_df[c("SEQN", 'MCQ160A', 'MCQ160B', 'MCQ160C', 'MCQ160D', 
+                            'MCQ160E', 'MCQ160F', 'MCQ160M', 'MCQ160P', 'MCQ160L', 
+                            'MCQ550', 'MCQ220', 'OSQ230')], "SEQN")
+
+for (i in colnames(df)) {
+  # recode bivariate responses to Yes and No
+  if (length(unique(df[[i]]))==3) {
+    df[[i]] <- recode(df[[i]], '1' = 'Yes', '2' = 'No')
+  }
+  print(i)
+  print(unique(df[[i]]))
+}
+
+df_run_mann_witney <- function(df) {
+  # recode value names to numbers
+  df$iv <- recode(df$iv, "Yes"=1, 'No'=0)
+  return(wilcox.test(df$iv, df$dv))
+}
+
+df_run_chi_squared <- function(df) {
+  # convert dataframe to table
+  df_table <- table(df$dv, df$iv)
+  results <- chisq.test(df_table)
+  return(results)
+}
+
+# function to calculate odds at each variable being greater than or less than value
+sf <- function(y) {
+  c('Y>=1' = qlogis(mean(y >= 1)),
+    'Y>=2' = qlogis(mean(y >= 2)),
+    'Y>=3' = qlogis(mean(y >= 3)))
+}
+```
+
+
+# Data Cleaning and Preperation for Analysis
+
+## Initial Cleaning and Inferences
+
+After loading in the data, the values from each of the tables were standardised and combined. This would include recoding numerical data to the appropriate categorical responses (i.e. Yes/No responses, Likert Scale Higest to Lowest), summing the scores from the depression questionnaire, and merging the dataframes based on their user id. The depressions summed scores were also recoded to the appropriate output according to Kroenke et. al. (2001) and displayed as a simple histogram for further analysis.
+
+```{r echo=FALSE, fig.height=8, fig.width=11, message=FALSE, warning=FALSE}
+ggplot(dep_df, aes(dep_score, x=)) + geom_histogram(breaks=break_points) + labs(title = 'Depression Counts', x = 'Depression Score', y = 'Individual Count') + theme_economist()
+```
+
+## Statistical Significance
+
+As displayed in the prior section, the depression scores are exponentially distributed. Since the dependent variable is non-parametric, significance testing was conducted using the appropriate tests. The columns and values were run through the following function which is automated to calculate the significance based on the dependent variable type and independent variable type. This would result in either a chi squared test, mann witney test, or kruskal wallis test, depending on the variable type.
+
+```{r significance_testing, echo=TRUE, message=FALSE, warning=FALSE}
+# Function that automatically tests statistical significance based on data type
+df_significance_testing <- function(df, dv, index) {
+  print('Finding significant columns...')
+  # Create empty list to return significant variables
+  affective_columns <- c()
+  if (class(df[[dv]])=='factor') {  #check for categorical dependent variable
+    print('Dependent variable is categorical')
+    for (i in colnames(df)) {
+      # skips unnecessary columns
+      if (i==index|i==dv|i=='dv') {
+        next
+      }
+      print(glue('Running test with {i} column...'))
+      # isolate dependent variable
+      df_i <- df[c(dv, i)]
+      colnames(df_i)[1:2] <- c('dv', 'iv')
+      # filter missing data
+      df_i <- df_i %>% filter(iv!='Missing')
+      # run chi squared test on the data
+      results <- df_run_chi_squared(df_i)
+      # error filtering
+      if (class(results)!="htest") {
+        next
+      # add columns as significant and skip insigificant columns based on p value
+      } else if (results$p.value<0.05) {
+        print(results)
+        affective_columns <- c(affective_columns, i)
+      } else {
+        next
+      }
+    }
+  } else if (class(df[[dv]])=='integer'|class(df[[dv]])=='numeric') { # check if dependent variable is numerical
+    print('Dependent variable is numerical')
+    for (i in colnames(df)) {
+      # skip unnecessary columns
+      if (i==index|i==dv|i=='dv') {
+        next
+      }
+      print(glue('Running test with {i} column...'))
+      if (identical(sort(unique(df[[i]])), c("Missing", "No", "Yes"))) {
+        # isolate dependent variable
+        df_i <- df[c(dv, i)]
+        colnames(df_i)[1:2] <- c('dv', 'iv')
+        # filter missing data
+        df_i <- df_i %>% filter(iv!='Missing')
+        # run mann witney test on the data
+        results <- df_run_mann_witney(df_i)
+        # error filtering
+        if (class(results)!="htest") {
+          print(class(results))
+          next
+        # add columns as significant and skip insigificant columns based on p value
+        } else if (results$p.value<0.05) {
+          affective_columns <- c(affective_columns, i)
+        }
+      } else {
+        # isolate dependent variable
+        df_i <- df[c(dv, i)]
+        colnames(df_i)[1:2] <- c('dv', 'iv')
+        # filter missing data
+        df_i <- df_i %>% filter(iv!='Missing')
+        # run kruskal wallis test on the data
+        results <- kruskal.test(df_i$iv, df_i$dv)
+        # error filtering
+        if (class(results)!="htest") {
+          print(class(results))
+          next
+        # add columns as significant and skip insigificant columns based on p value
+        } else if (results$p.value<0.05) {
+          print(results)
+          affective_columns <- c(affective_columns, i)
+        }
+      }
+    }
+  } else {
+    # Error handling for unsupported data types
+    print(glue('unsupported dependent variable type: {class(df[[dv]]}'))
+  }
+  # return significant columns
+  return(affective_columns)
+}
+```
+
+The reuslting variables were found as significant as a result:
+
+```{r significant_columns, message=FALSE, warning=FALSE, include=FALSE}
+sig_columns_score <- df_significance_testing(subset(df, select = -c(dep_cat)), 'dep_score', 'SEQN')
+sig_columns_cat <- df_significance_testing(subset(df, select = -c(dep_score)), 'dep_cat', 'SEQN')
+
+# create score df for analysis
+score_df <- df[c('dep_score', sig_columns_score)]
+# create category df for analysis (primary use)
+cat_df <- df[c('dep_cat', sig_columns_cat)]
+cat_df <- na.omit(cat_df)
+```
+```{r significant_columns_2, echo=FALSE, message=FALSE, warning=FALSE}
+print(sig_columns_cat)
+```
+
+## Ordinal Logistic Regression
+
+Using the previously collected variables, an ordinal logistic regression model was selected to represent the data. The model was based on the UCLA Statistical Consulting Group's instructions (n.d.), to ensure consistent multivariate analysis on the categorical data. Variables were further tested against the model for significance, calculated based on the confidence intervals. Following this stage, the data can be graphed.
+
+```{r olr_model, echo=FALSE, message=FALSE, warning=FALSE}
+olr_testing <- function(df, iv, dv) {
+  # fit the data to the ordinal logistic regression model
+  m <- polr(formula = as.formula(glue('{dv} ~ {paste(iv, collapse= "+")}')), data = df, Hess=TRUE)
+  # display summary
+  summary(m)
+  # display coefficients
+  ctable <- coef(summary(m))
+  # calculate t statistic of variables
+  p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+  # calculate significance of variable 
+  ctable <- cbind(ctable, "p value" = p)
+  # calcualte confidence intervals
+  ci <- confint(m)
+  # calculate confidence intervals based on coefficients
+  exp(coef(m))
+  print(exp(cbind(OR = coef(m), ci)))
+  
+  # calculate logistic scores based on calculations
+  s <- with(df, summary(as.formula(glue('as.numeric({dv}) ~ {paste(iv, collapse= "+")}')), fun=sf))
+  # display and plot impact of logit calculations
+  s[, 4] <- s[, 4] - s[, 3]
+  s[, 3] <- s[, 3] - s[, 3]
+  # plot(s, which=1:3, pch=1:3, xlab='logit', main=' ', xlim=range(s[,3:4]))
+  return(m)
+}
+
+# create ordinal logistic regression model using a custom function
+m <- olr_testing(cat_df, sig_columns_cat, 'dep_cat')
+
+# create dataframe with all variable possibilities
+reg_df <<- data.frame(
+  HIQ210 = rep(c('Yes', 'No'), 5120),
+  HUQ090 = rep(c('Yes', 'No'), 2560, each=2),
+  MCQ160A = rep(c('Yes', 'No'), 1280, each=4),
+  MCQ160B = rep(c('Yes', 'No'), 640, each=8),
+  MCQ160D = rep(c('Yes', 'No'), 320, each=16),
+  MCQ160F = rep(c('Yes', 'No'), 160, each=32),
+  MCQ160M = rep(c('Yes', 'No'), 80, each=64),
+  MCQ160P = rep(c('Yes', 'No'), 40, each=128),
+  MCQ160L = rep(c('Yes', 'No'), 20, each=256),
+  MCQ550 = rep(c('Yes', 'No'), 10, each=512),
+  OSQ230 = rep(c('Yes', 'No'), 5, each=1024),
+  gen_health = rep(c("good","very_good","excellent","fair","poor"), each=1024)
+)
+
+# calculate probability to each possible variable outcome
+reg_df_probs <- cbind(reg_df, predict(m, reg_df, type = "probs"))
+
+# add probabilities to each possible variable outcome in dataframe
+lreg_df <- melt(reg_df_probs, id.vars = sig_columns_cat, variable.name = "depression_level", value.name = "Probability", )
+
+# add labels for the filter option
+filter_options_labeled <- c(
+  'Uninsured Past Year'='HIQ210', 
+  'Seen a Mental Health Professional Past Year'='HUQ090', 
+  'Arthritis'='MCQ160A', 
+  'Congestive Heart Failure'='MCQ160B', 
+  'Angina'='MCQ160D', 
+  'Stroke'='MCQ160F',
+  'Thyroid Problems'='MCQ160M', 
+  'COPD/Emphasema/ChB'='MCQ160P', 
+  'Liver Condition'='MCQ160L', 
+  'Gallstones'='MCQ550',
+  'Metal in Body'='OSQ230'
+)
+```
+
+# Visualisation and Analysis
+
+## Creating the Visualisation
+
+Graphin was conducted using the following function. It is is designed to output a bar graph with the x variable representing the general perceived health, the y variable representing the probability as a percentage, and multiple bars per x category to represent the depression score category outcome. The function can be used primarily in a shiny live application, which allows for variable filtering, but can still output a static application with hover capability.
+
+```{r graphing_function, echo=TRUE, message=FALSE, warning=FALSE}
+graphing_scores <- function(df=df, name='base') {
+  output_plot <- ggplot(df, mapping=aes(
+    # set general health to the categorical x value
+    x = factor(gen_health, levels = c(
+      'Excellent'='excellent', 
+      'Very Good'='very_good', 
+      'Good'='good', 
+      'Fair'='fair', 
+      'Pool'='poor'
+    )), 
+    # set the probability to the y variable
+    y = Probability, 
+    # set fill to be the depression level, making a separate bar for each
+    fill = depression_level,
+    # create tooltip to display the probability percent when hovered over
+    tooltip = glue('Probability: {round(Probability, 4)*100}%'), 
+    # assign interactive element to probability variable
+    data_id = Probability
+    # create the interactive bar chart
+  )) + geom_bar_interactive(position = 'dodge', stat = 'identity') + labs(
+    # labeling
+    title = 'Depression Probability',
+    x = 'Self Reported General Health Status',
+    y = 'Probability of Outcome (0 to 1)',
+    # set hover to focus on mouse cursor
+    hover_nearest = TRUE,
+    aes(name='Depression Categorical depression_level')
+    # scale the probabilities as percentages
+  ) + scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
+    # add theaming
+    theme_economist() + 
+    scale_fill_viridis(discrete = TRUE, direction = -1, option = "rocket")
+  # export interactive plot element 
+  interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
+  if (name != '') {
+    # export graph as html files
+    htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
+  }
+  return(interactive_plot)
+}
+```
+
+## Final Visualisation
+<!-- !![The final plot was implemented on a shiny server. The account is a free tier with limited active hours per month, if there are any issues viewing the output the graph can also be viewed by running the source file to completion or by contacting the author to re-spin the deployment.](https://shawnadvani.shinyapps.io/UoS_data_analysis_project/) -->
+
+```{r echo=FALSE, message=TRUE, warning=TRUE}
+knitr::include_app('https://shawnadvani.shinyapps.io/UoS_data_analysis_project/')
+# htmltools::
+# tags$iframe('figs/base.html')
+```
+May take some time to load
+Server Live Location: https://shawnadvani.shinyapps.io/UoS_data_analysis_project/
+<!-- ![](figs/base.html) -->
+
+## Analysis
+
+According to the data, the primary variable correlated to a high depression score is having visited a mental health professional within the last year. All other variables, when this one is taken account, is not high enough to surpass any other rank. This implies that individuals who have had recent mental health issues are a greater indication of depression than any chronic condition or insurance status. However, lower general perceived health also lead to higher depression score rates. In all cases excellent general perceived health had minimal depression as the majority, while poor general percieved health ahd varying results including some where severe depression was the highest.
+
+## Limitations
+
+Some issues come with the data limitation. Due to the nature of these questionnaire studies having the majority of sections empty and the necessities of the ordinal logistic regression model for complete data, almost half the data entries were removed. This may have significantly impacted the outcome of the study, decreasing the power and removing influential data points. This can be combatted in the future by recording empty data points, however there are other concerns with that approach with regards to bias and precision.
+
+## Further Research
+
+Potential research can be implemented by addin in more years to the algorithm. Having dates be a factor, especially with COVID data being represented, can show a before and after to these trends. There are also other questionnaires, such as dietary or demographic data, that could also be analysed within this context.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,3 +1,4 @@
+# check if necessary packages are installed
 if (system.file(package='viridis')=="") {install.packages("viridis")}
 if (system.file(package='ggthemes')=="") {install.packages("ggthemes")}
 if (system.file(package='ggiraph')=="") {install.packages("ggiraph")}
@@ -24,7 +25,7 @@ run_app <- function(df, filter_options, filter_options_labeled) {
         checkboxGroupInput("cols", "Select Conditions:", 
                            choices = filter_options_labeled, selected = filter_options
         # create table element with relevant data
-        ), tableOutput(outputId = 'table')), 
+        ), tableOutput(outputId = 'table'), width = 2), 
       mainPanel(
         # create interactive graph element
         girafeOutput(outputId = "interactivePlot", width = '100%', height = NULL)
@@ -82,9 +83,9 @@ graphing_scores <- function(df=df, name='base') {
     )), 
     # set the probability to the y variable
     y = Probability, 
-    # set fill to be the depression level, making a seperate bar for each
+    # set fill to be the depression level, making a separate bar for each
     fill = depression_level,
-    # create tooltop to display the probability percent when hovered over
+    # create tooltip to display the probability percent when hovered over
     tooltip = glue('Probability: {round(Probability, 4)*100}%'), 
     # assign interactive element to probability variable
     data_id = Probability
@@ -106,6 +107,7 @@ graphing_scores <- function(df=df, name='base') {
   interactive_plot <- ggiraph(ggobj=output_plot, width_svg = 11, height_svg = 8.5)
   if (name != '') {
     # export graph as html files
+    ggsave(glue('figs/{name}.png'), width = 11, height = 8.5)
     htmltools::save_html(interactive_plot, glue('figs/{name}.html'))
   }
   return(interactive_plot)

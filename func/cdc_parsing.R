@@ -1,8 +1,8 @@
 # check if necessary packages are installed
 if (system.file(package='rvest')=="") {install.packages('rvest')}
-if (system.file(package='xml2')=="") install.packages('xml2')
+if (system.file(package='xml2')=="") {install.packages('xml2')}
 
-# import all dependencies
+# import dependencies
 library(haven)
 library(rvest)
 library(stringr)

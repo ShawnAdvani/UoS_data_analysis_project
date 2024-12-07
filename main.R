@@ -1,5 +1,8 @@
+# check if necessary packages are installed
+if (system.file(package='glue')=="") {install.packages("glue")}
+
+# import dependencies
 require(tidyverse)
-require(janitor)
 require(glue)
 source('func/cdc_parsing.R')
 source('func/stats_testing.R')
@@ -29,7 +32,11 @@ dep_df$dep_cat <- recode(dep_df$dep_group,
                          "(19,27]" = "severe")
 
 # plot histogram scores of depression_score
-ggplot(dep_df, aes(dep_score)) + geom_histogram(breaks=break_points)
+ggplot(dep_df, aes(dep_score, x=)) + 
+  geom_histogram(breaks=break_points) + 
+  labs(title = 'Depression Counts', x = 'Depression Score', y = 'Individual Count') + 
+  theme_economist()
+ggsave('figs/hist.png')
 dep_df[c('dep_cat','dep_score')] # depression score shows to have an exponential distribution
 
 # replace NA/missing in insur_df to 7 (refused response)
@@ -129,7 +136,7 @@ filter_options_labeled <- c(
   'Metal in Body'='OSQ230'
 )
 
-# export png version of the script note: this sometimes displays odd in RStudio but displays fine in the output file
+# export png version of the script note
 graphing_scores(lreg_df %>% group_by(gen_health, depression_level) %>% summarise(Probability=mean(Probability)))
 
 # run function to run app
